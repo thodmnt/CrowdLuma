@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>CrowdLuma</title>
+  <style>
+    :root{--accent:#7dd3fc;--ok:#34d399;--warn:#fbbf24;--bad:#fb7185;--text:#eef5ff;--muted:#9fb0c7;--card:#111c2e}
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    html,body{height:100%;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif}
+    .p-hidden{display:none!important}
+
+    /* ══ LANDING (aucun paramètre URL) ══════════════════════════════ */
+    #landing{
+      min-height:100vh;display:flex;align-items:center;justify-content:center;
+      background:radial-gradient(circle at 30% 20%,#1b2c4a,#07111f 65%);
+      padding:28px;
+    }
+    #lCard{text-align:center;max-width:380px}
+    .l-logo{font-size:64px;line-height:1;margin-bottom:18px}
+    .l-title{font-size:30px;font-weight:900;color:var(--text);letter-spacing:-.04em;margin-bottom:10px}
+    .l-sub{font-size:15px;color:var(--muted);line-height:1.55;margin-bottom:30px}
+    .l-qr-box{
+      display:inline-block;background:rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.13);border-radius:20px;
+      padding:22px 28px;margin-bottom:26px;
+    }
+    .l-qr-icon{font-size:52px;margin-bottom:10px}
+    .l-qr-text{font-size:14px;color:var(--muted);line-height:1.5}
+    .l-qr-text strong{color:var(--text);display:block;margin-bottom:4px;font-size:15px}
+    .l-links{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+    .l-btn{
+      font-size:13px;font-weight:700;text-decoration:none;
+      border-radius:12px;padding:10px 18px;transition:opacity .15s;
+    }
+    .l-btn:active{opacity:.75}
+    .l-btn.primary{background:rgba(125,211,252,.15);color:var(--accent);border:1px solid rgba(125,211,252,.25)}
+    .l-btn.ghost  {background:rgba(255,255,255,.06);color:var(--muted); border:1px solid rgba(255,255,255,.12)}
+
+    /* ══ VUE PARTICIPANT (verrouillée sur le siège du QR code) ══════ */
+    #pView{
+      position:fixed;inset:0;z-index:10;overflow:hidden;
+      font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;
+    }
+
+    /* Fond couleur */
+    #pBg{
+      position:absolute;inset:0;
+      background:#07111f;
+      transition:background .55s cubic-bezier(.4,0,.2,1);
+    }
+
+    /* Dégradés haut/bas pour lisibilité des infos */
+    #pTopFade{position:absolute;top:0;left:0;right:0;height:130px;z-index:1;
+      background:linear-gradient(to bottom,rgba(0,0,0,.55),transparent);pointer-events:none}
+    #pBotFade{position:absolute;bottom:0;left:0;right:0;height:130px;z-index:1;
+      background:linear-gradient(to top,rgba(0,0,0,.45),transparent);pointer-events:none}
+
+    /* Infos siège — coin haut-gauche — LECTURE SEULE */
+    #pTopLeft{position:absolute;top:18px;left:20px;z-index:5}
+    #pSeat{
+      font-size:30px;font-weight:900;color:white;letter-spacing:-.04em;
+      text-shadow:0 2px 12px rgba(0,0,0,.55);line-height:1;
+    }
+    #pMeta{font-size:11px;color:rgba(255,255,255,.7);margin-top:4px;
+      text-shadow:0 1px 5px rgba(0,0,0,.5);letter-spacing:.02em}
+
+    /* UID participant — coin haut-droit */
+    #pUID{position:absolute;top:22px;right:16px;z-index:5;
+      font-size:9px;color:rgba(255,255,255,.28);
+      text-shadow:0 1px 4px rgba(0,0,0,.4);font-family:monospace}
+
+    /* Instruction centrale (mode chorégraphie) */
+    #pCenter{
+      position:absolute;inset:0;z-index:2;
+      display:flex;align-items:center;justify-content:center;
+      pointer-events:none;text-align:center;padding:0 24px;
+    }
+    #pInstr{font-size:16px;color:rgba(255,255,255,.55);font-weight:600;
+      text-shadow:0 2px 8px rgba(0,0,0,.4)}
+
+    /* Bouton Shop (discret, coin bas-droit) */
+    #pShopBtn{
+      position:absolute;bottom:30px;right:20px;z-index:10;
+      background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.25);
+      color:rgba(255,255,255,.9);border-radius:28px;padding:11px 18px;
+      font:inherit;font-size:13px;font-weight:700;cursor:pointer;
+      backdrop-filter:blur(10px);box-shadow:0 4px 20px rgba(0,0,0,.35);
+    }
+    #pShopBtn:active{transform:scale(.96)}
+
+    /* Lien admin (quasi invisible — accès opérateur uniquement) */
+    #pAdminLink{
+      position:absolute;bottom:36px;left:16px;z-index:10;
+      font-size:9px;color:rgba(255,255,255,.1);text-decoration:none;
+    }
+
+    /* ── Bannière notification ── */
+    #pNotif{
+      position:absolute;top:0;left:0;right:0;z-index:20;
+      display:flex;align-items:flex-start;gap:12px;
+      padding:14px 16px 12px;
+      background:rgba(251,191,36,.17);
+      border-bottom:1px solid rgba(251,191,36,.35);
+      backdrop-filter:blur(14px);
+      animation:slideDown .3s ease;
+    }
+    #pNotifIcon{font-size:18px;flex-shrink:0;margin-top:1px}
+    #pNotifText{flex:1;font-size:14px;color:rgba(255,255,255,.95);line-height:1.4;
+      text-shadow:0 1px 4px rgba(0,0,0,.3)}
+    #pNotifClose{background:none;border:none;color:rgba(255,255,255,.55);
+      font-size:22px;cursor:pointer;padding:0 2px;line-height:1;flex-shrink:0}
+
+    /* ── Overlay vote ── */
+    #pVoteWrap{
+      position:absolute;inset:0;z-index:25;
+      display:flex;align-items:center;justify-content:center;
+      background:rgba(0,0,0,.65);backdrop-filter:blur(4px);
+    }
+    #pVoteCard{
+      background:var(--card);border:1px solid rgba(255,255,255,.14);
+      border-radius:20px;padding:24px;
+      width:min(90vw,380px);max-height:80dvh;overflow-y:auto;
+      color:var(--text);animation:slideDown .3s ease;
+    }
+    #pVoteOpts{display:flex;flex-direction:column;gap:8px;margin-top:2px}
+    #pVoteOpts button{
+      width:100%;text-align:left;padding:13px 16px;
+      background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);
+      border-radius:14px;color:var(--text);font:inherit;font-size:14px;cursor:pointer;
+      transition:background .15s;
+    }
+    #pVoteOpts button:hover{background:rgba(125,211,252,.12)}
+    #pVoteOpts button:active{transform:scale(.98)}
+    #pVoteResult{margin-top:14px}
+    .vr-bar{height:26px;border-radius:8px;background:rgba(255,255,255,.08);
+      overflow:hidden;position:relative;margin:5px 0}
+    .vr-fill{height:100%;border-radius:8px;background:var(--accent);transition:width .7s ease}
+    .vr-lbl{position:absolute;inset:0;display:flex;align-items:center;
+      justify-content:space-between;padding:0 10px;font-size:12px;color:rgba(255,255,255,.85)}
+
+    /* ── Overlay shop (monte du bas) ── */
+    #pShopWrap{
+      position:absolute;bottom:0;left:0;right:0;z-index:25;
+      animation:slideUp .3s cubic-bezier(.4,0,.2,1);
+    }
+    #pShopCard{
+      background:var(--card);border-top:1px solid rgba(255,255,255,.14);
+      border-radius:20px 20px 0 0;padding:0 20px 40px;
+      max-height:74dvh;overflow-y:auto;
+    }
+    #pShopHandle{display:flex;justify-content:center;padding:14px 0 4px}
+    #pShopHandle div{width:38px;height:4px;border-radius:2px;background:rgba(255,255,255,.17)}
+    #pShopHead{display:flex;align-items:center;justify-content:space-between;padding:10px 0 14px}
+    #pShopHeadTitle{font-size:18px;font-weight:800;color:var(--text)}
+    #pShopClose{background:rgba(255,255,255,.08);border:none;border-radius:50%;
+      width:32px;height:32px;color:rgba(255,255,255,.55);font-size:18px;
+      cursor:pointer;display:flex;align-items:center;justify-content:center}
+    #pShopSub{font-size:12px;color:var(--muted);margin-bottom:14px}
+    .p-item{
+      display:flex;align-items:center;gap:14px;padding:13px;
+      border-radius:14px;background:rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.09);margin-bottom:8px;
+    }
+    .p-item-icon{font-size:28px;flex-shrink:0}
+    .p-item-info{flex:1}
+    .p-item-name{font-size:15px;font-weight:700;color:var(--text)}
+    .p-item-desc{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.35}
+    .p-item-price{font-size:13px;font-weight:700;color:var(--accent);margin-top:3px}
+    .p-item-btn{
+      background:var(--accent);color:#07111f;border:none;border-radius:12px;
+      padding:10px 16px;font:inherit;font-size:13px;font-weight:800;
+      cursor:pointer;flex-shrink:0;white-space:nowrap;
+    }
+    .p-item-btn:active{transform:scale(.93)}
+    .p-item-btn.done{background:rgba(52,211,153,.15);color:var(--ok);border:1px solid rgba(52,211,153,.3)}
+    .p-item-btn.done:active{transform:none;cursor:default}
+    #pMyOrders{border-top:1px solid rgba(255,255,255,.08);margin-top:14px;padding-top:14px;display:none}
+    .pmo-lbl{font-size:11px;font-weight:700;color:var(--muted);
+      text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+    .pmo-row{display:flex;justify-content:space-between;align-items:center;
+      padding:8px 10px;background:rgba(255,255,255,.04);border-radius:10px;
+      margin-bottom:4px;font-size:13px;color:var(--text)}
+    .pmo-tag{font-size:11px;padding:2px 9px;border-radius:10px}
+
+    @keyframes slideDown{from{transform:translateY(-100%)}to{transform:translateY(0)}}
+    @keyframes slideUp  {from{transform:translateY(100%)} to{transform:translateY(0)}}
+
+    /* ── Overlay Loterie ── */
+    #pLotteryWrap{
+      position:absolute;inset:0;z-index:35;
+      display:flex;align-items:center;justify-content:center;
+      backdrop-filter:blur(6px);
+    }
+    #pLotteryCard{
+      background:linear-gradient(135deg,#1a0f00,#2d1a00);
+      border:2px solid rgba(251,191,36,.5);border-radius:24px;
+      padding:32px 28px;width:min(88vw,360px);text-align:center;
+      animation:lotteryPop .4s cubic-bezier(.34,1.56,.64,1);
+    }
+    @keyframes lotteryPop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+    #pLotterySuspenseWrap{position:absolute;inset:0;z-index:34;pointer-events:none}
+    #pLotterySuspenseBg{position:absolute;inset:0;animation:suspenseFlash .4s ease infinite alternate}
+    @keyframes suspenseFlash{from{background:rgba(251,191,36,.08)}to{background:rgba(251,191,36,.22)}}
+    /* Indicateur torche */
+    #pTorchIndicator{
+      position:absolute;top:18px;right:90px;z-index:5;
+      font-size:16px;opacity:0;transition:opacity .3s;pointer-events:none;
+    }
+    #pTorchIndicator.on{opacity:1}
+  </style>
+</head>
+<body>
+
+<!-- ══ LANDING — affiché quand il n'y a pas de QR code ══════════════ -->
+<div id="landing">
+  <div id="lCard">
+    <div class="l-logo">🏟</div>
+    <div class="l-title">CrowdLuma</div>
+    <div class="l-sub">
+      Transformez votre tribune en une fresque humaine géante.
+      Chaque téléphone devient un pixel dans la chorégraphie.
+    </div>
+    <div class="l-qr-box">
+      <div class="l-qr-icon">📱</div>
+      <div class="l-qr-text">
+        <strong>Scannez le QR code de votre siège</strong>
+        Chaque place a son propre QR code<br>imprimé sur votre fauteuil ou carton.
+      </div>
+    </div>
+    <div class="l-links">
+      <a href="demo.html" class="l-btn primary">🎬 Voir la démo</a>
+      <a href="stadium-admin.html" class="l-btn ghost">⚙ Admin</a>
+    </div>
+  </div>
+</div>
+
+<!-- ══ VUE PARTICIPANT — verrouillée sur le siège du QR code ════════ -->
+<div id="pView" class="p-hidden">
+
+  <!-- Fond couleur -->
+  <div id="pBg"></div>
+  <div id="pTopFade"></div>
+  <div id="pBotFade"></div>
+
+  <!-- Infos siège (lecture seule, issues du QR code) -->
+  <div id="pTopLeft">
+    <div id="pSeat">—</div>
+    <div id="pMeta"></div>
+  </div>
+  <div id="pUID"></div>
+
+  <!-- Instruction centrale (optionnelle) -->
+  <div id="pCenter"><div id="pInstr"></div></div>
+
+  <!-- Bannière notification -->
+  <div id="pNotif" class="p-hidden">
+    <div id="pNotifIcon">🔔</div>
+    <div id="pNotifText"></div>
+    <button id="pNotifClose" onclick="pDismissNotif()">×</button>
+  </div>
+
+  <!-- Overlay vote -->
+  <div id="pVoteWrap" class="p-hidden">
+    <div id="pVoteCard">
+      <div style="font-size:11px;font-weight:700;color:var(--ok);
+                  text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">
+        📊 Sondage en direct
+      </div>
+      <div id="pVoteQ" style="font-size:18px;font-weight:800;line-height:1.3;margin-bottom:18px"></div>
+      <div id="pVoteOpts"></div>
+      <div id="pVoteResult" class="p-hidden" style="margin-top:14px"></div>
+    </div>
+  </div>
+
+  <!-- Overlay shop -->
+  <div id="pShopWrap" class="p-hidden">
+    <div id="pShopCard">
+      <div id="pShopHandle"><div></div></div>
+      <div id="pShopHead">
+        <div id="pShopHeadTitle">🛒 Commander</div>
+        <button id="pShopClose" onclick="pCloseShop()">×</button>
+      </div>
+      <div id="pShopSub"></div>
+      <div id="pShopItems"></div>
+      <div id="pMyOrders">
+        <div class="pmo-lbl">Mes commandes</div>
+        <div id="pMyOrdersList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bouton Shop -->
+  <button id="pShopBtn" class="p-hidden" onclick="pOpenShop()">🛒 Shop</button>
+
+  <!-- Lien admin (quasi invisible) -->
+  <a href="stadium-admin.html" id="pAdminLink">admin ↗</a>
+
+  <!-- Suspense loterie (fond animé) -->
+  <div id="pLotterySuspenseBg" style="display:none;position:absolute;inset:0;z-index:34;pointer-events:none"></div>
+  <!-- Overlay loterie gagnant/perdant -->
+  <div id="pLotteryWrap" class="p-hidden">
+    <div id="pLotteryCard"></div>
+  </div>
+  <!-- Indicateur torche active -->
+  <div id="pTorchIndicator">🔦</div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  CONFIG — renseigner une seule fois                             ║
+// ║  Créer un projet gratuit sur https://supabase.com              ║
+// ╚══════════════════════════════════════════════════════════════════╝
+const CROWDLUMA = {
+  supabaseUrl : '',          // ex: https://xxxxxxxxxxxx.supabase.co
+  supabaseKey : '',          // clé anon publique
+  stadiumId   : 'default',  // même valeur que dans stadium-admin.html
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// LECTURE URL (QR code) — VERROUILLÉE, non modifiable par l'utilisateur
+// ═══════════════════════════════════════════════════════════════════
+const _q      = new URLSearchParams(location.search);
+const _pRow   = +(_q.get('row')  || _q.get('r')            || 0);
+const _pCol   = +(_q.get('seat') || _q.get('col') || _q.get('c') || 0);
+const _pStand   = _q.get('stand') || '';
+const _pBlock   = _q.get('block') || '';
+const _pZone    = _q.get('zone')  || '';
+const _pColor   = decodeURIComponent(_q.get('color') || '%232563eb');
+
+// Identifiant siège (lecture seule)
+function _buildSeatId(block, row, col){
+  if(block) return block.toUpperCase() + String(row).padStart(2,'0') + '-' + String(col).padStart(2,'0');
+  return 'R' + String(row).padStart(2,'0') + '-C' + String(col).padStart(2,'0');
+}
+const _pSeatId = (_pRow && _pCol) ? _buildSeatId(_pBlock, _pRow, _pCol) : '';
+
+// ═══════════════════════════════════════════════════════════════════
+// ROUTING : landing OU vue participant
+// ═══════════════════════════════════════════════════════════════════
+if(_pRow && _pCol){
+  document.getElementById('landing').style.display = 'none';
+  document.getElementById('pView').classList.remove('p-hidden');
+  _startParticipant();
+}
+// (sinon la landing reste visible par défaut)
+
+// ═══════════════════════════════════════════════════════════════════
+// IDENTIFIANT PERSISTANT DU PARTICIPANT (UUID localStorage)
+// ═══════════════════════════════════════════════════════════════════
+function getPID(){
+  let p = localStorage.getItem('crowdluma_pid');
+  if(!p){
+    p = (crypto.randomUUID
+      ? crypto.randomUUID()
+      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+          const r = Math.random()*16|0;
+          return (c==='x' ? r : (r&0x3|0x8)).toString(16);
+        }));
+    localStorage.setItem('crowdluma_pid', p);
+  }
+  return p;
+}
+const pPID = getPID();
+
+// ═══════════════════════════════════════════════════════════════════
+// MENU PAR DÉFAUT (désactivé ; activé par broadcast admin)
+// ═══════════════════════════════════════════════════════════════════
+const MENU_DEFAULTS = [
+  {id:'beer', icon:'🍺', label:'Boisson',   desc:'Bière, eau, soda livré à votre siège', price:'4.50', enabled:false},
+  {id:'snack',icon:'🌭', label:'Snack',     desc:'Hot-dog, frites et snacks',            price:'3.00', enabled:false},
+  {id:'menu', icon:'🥤', label:'Menu',      desc:'Boisson + snack',                      price:'7.00', enabled:false},
+  {id:'info', icon:'📋', label:'Programme', desc:'Compositions des équipes',             price:null,   enabled:false},
+];
+let pMenu = MENU_DEFAULTS.map(i=>({...i}));
+
+// ═══════════════════════════════════════════════════════════════════
+// ÉTAT PARTICIPANT
+// ═══════════════════════════════════════════════════════════════════
+let pOrdered    = {};
+let pVoteActive = null;
+let pVoted      = false;
+let pNotifTimer = null;
+let pSupabase   = null;
+let pChannel    = null;
+let pShowFrames = null;
+let pFrameIdx   = 0;
+let pFrameTimer = null;
+
+const $ = id => document.getElementById(id);
+
+// ═══════════════════════════════════════════════════════════════════
+// DÉMARRAGE
+// ═══════════════════════════════════════════════════════════════════
+function _startParticipant(){
+  // Afficher infos siège (figées depuis le QR code)
+  $('pSeat').textContent = _pSeatId;
+  const meta = [_pStand, _pBlock ? 'Bloc '+_pBlock : '', _pRow ? 'Rang '+_pRow : '', _pCol ? 'Siège '+_pCol : '']
+    .filter(Boolean).join(' · ');
+  $('pMeta').textContent = meta;
+  $('pUID').textContent = 'ID ' + pPID.slice(-8).toUpperCase();
+
+  // Couleur initiale depuis QR code
+  pApplyColor(_pColor);
+
+  // Fermeture shop / vote via backdrop
+  $('pShopWrap').addEventListener('click', e => { if(e.target===$('pShopWrap')) pCloseShop(); });
+  $('pVoteWrap').addEventListener('click', e => { if(e.target===$('pVoteWrap') && pVoted) $('pVoteWrap').classList.add('p-hidden'); });
+
+  // Connexion Supabase si configuré
+  if(CROWDLUMA.supabaseUrl && CROWDLUMA.supabaseKey && typeof supabase !== 'undefined'){
+    try{ pSupabase = supabase.createClient(CROWDLUMA.supabaseUrl, CROWDLUMA.supabaseKey); }
+    catch(e){ console.warn('Supabase init:', e); }
+  }
+
+  pLoadShow();
+  setInterval(pLoadShow, 30000);
+  pInitRealtime();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// COULEUR
+// ═══════════════════════════════════════════════════════════════════
+function pApplyColor(hex){
+  $('pBg').style.background = hex;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SÉQUENCEUR (frames depuis show.json ou broadcast)
+// ═══════════════════════════════════════════════════════════════════
+function pStartSequencer(frames){
+  if(!frames?.length) return;
+  if(pFrameTimer){ clearTimeout(pFrameTimer); pFrameTimer=null; }
+  pShowFrames = frames;
+  pFrameIdx   = 0;
+  pRunFrame();
+}
+function pRunFrame(){
+  if(!pShowFrames) return;
+  const f = pShowFrames[pFrameIdx];
+  if(!f) return;
+  // Couleur spécifique au siège si grille présente, sinon couleur globale
+  const hex = f.grid ? (f.grid[_pRow-1]?.[_pCol-1] || _pColor) : (f.color || _pColor);
+  pApplyColor(hex);
+  if(f.instruction) $('pInstr').textContent = f.instruction;
+  if(pFrameTimer) clearTimeout(pFrameTimer);
+  pFrameTimer = setTimeout(()=>{
+    pFrameIdx = (pFrameIdx+1) % pShowFrames.length;
+    pRunFrame();
+  }, (f.duration || 4) * 1000);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SHOW.JSON (polling 30 s pour les téléphones sans Supabase)
+// ═══════════════════════════════════════════════════════════════════
+async function pLoadShow(){
+  try{
+    const r = await fetch('show.json', {cache:'no-cache'});
+    if(!r.ok) return;
+    const d = await r.json();
+    if(d.menuItems?.length){ pMenu = d.menuItems; _refreshShopBtn(); }
+    if(d.frames?.length) pStartSequencer(d.frames);
+  }catch{}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// REALTIME SUPABASE
+// ═══════════════════════════════════════════════════════════════════
+function pInitRealtime(){
+  if(!pSupabase) return;
+  pChannel = pSupabase
+    .channel('crowdluma-show-' + CROWDLUMA.stadiumId)
+
+    // ── Notifications ──────────────────────────────────────────────
+    .on('broadcast', {event:'notification'}, ({payload:pl}) => {
+      const t = pl.target;
+      // Ciblage : all | zone:X | block:X | seat:X | stand:X
+      if(t === 'all'
+         || t === 'seat:'  + _pSeatId
+         || t === 'block:' + _pBlock
+         || t === 'zone:'  + _pZone
+         || t === 'stand:' + _pStand)
+        pShowNotif(pl.message || '');
+    })
+
+    // ── Vote démarré ───────────────────────────────────────────────
+    .on('broadcast', {event:'vote'}, ({payload:pl}) => {
+      pVoteActive = pl; pVoted = false; _renderVote(pl);
+    })
+
+    // ── Résultats finaux du vote ───────────────────────────────────
+    .on('broadcast', {event:'vote_end'}, ({payload:pl}) => {
+      if(pl?.results?.length && pVoteActive){
+        $('pVoteQ').textContent = '📊 Résultats finaux';
+        $('pVoteOpts').innerHTML = '';
+        $('pVoteResult').classList.remove('p-hidden');
+        $('pVoteResult').innerHTML = pl.results.map(r =>
+          `<div class="vr-bar">
+            <div class="vr-fill" style="width:${r.pct}%"></div>
+            <div class="vr-lbl"><span>${r.option}</span><span>${r.pct}%</span></div>
+          </div>`
+        ).join('');
+        $('pVoteWrap').classList.remove('p-hidden');
+        setTimeout(() => { $('pVoteWrap').classList.add('p-hidden'); pVoteActive=null; }, 6000);
+      } else {
+        $('pVoteWrap').classList.add('p-hidden'); pVoteActive=null;
+      }
+    })
+
+    // ── Mise à jour chorégraphie ───────────────────────────────────
+    .on('broadcast', {event:'show_update'}, ({payload:pl}) => {
+      if(pl.frames) pStartSequencer(pl.frames);
+      else if(pl.color) pApplyColor(pl.color);
+    })
+
+    // ── Mise à jour menu shop ──────────────────────────────────────
+    .on('broadcast', {event:'menu_update'}, ({payload:pl}) => {
+      if(pl.menuItems?.length){ pMenu = pl.menuItems; _refreshShopBtn(); }
+      if(!$('pShopWrap').classList.contains('p-hidden')) pRenderShop();
+    })
+
+    // ── Loterie suspense ────────────────────────────────────────────────────────
+    .on('broadcast', {event:'lottery_draw'}, ({payload:pl}) => {
+      const suspenseBg = $('pLotterySuspenseBg');
+      suspenseBg.style.display = '';
+      // Faire pulser le fond pendant le suspense
+      let pulse = true;
+      const bgInterval = setInterval(() => {
+        pulse = !pulse;
+        suspenseBg.style.background = pulse ? 'rgba(251,191,36,.2)' : 'rgba(220,38,38,.15)';
+      }, 200);
+      setTimeout(() => {
+        clearInterval(bgInterval);
+        suspenseBg.style.display = 'none';
+      }, (pl.suspenseSec || 5) * 1000);
+    })
+    // ── Gagnant de la loterie ────────────────────────────────────────────────────
+    .on('broadcast', {event:'lottery_win'}, ({payload:pl}) => {
+      $('pLotterySuspenseBg').style.display = 'none';
+      const isWinner = pl.seatId && pl.seatId === _pSeatId;
+      const card = $('pLotteryCard');
+      if (isWinner) {
+        // Faire clignoter le fond en or
+        $('pBg').style.background = '#fbbf24';
+        setTimeout(() => pApplyColor(_pColor), 8000);
+        card.innerHTML = `
+          <div style="font-size:64px;margin-bottom:12px;animation:lotteryPop .5s ease">🏆</div>
+          <div style="font-size:24px;font-weight:900;color:#fbbf24;letter-spacing:-.03em;margin-bottom:8px">VOUS GAGNEZ !</div>
+          <div style="font-size:15px;color:rgba(255,255,255,.9);margin-bottom:16px;line-height:1.4">${pl.prize || 'Un super prix !'}</div>
+          <div style="font-size:13px;color:rgba(255,255,255,.55)">Présentez-vous au point d'accueil avec ce siège :<br>
+            <strong style="color:#fbbf24;font-size:16px">${_pSeatId}</strong>
+          </div>
+          <button onclick="$('pLotteryWrap').classList.add('p-hidden')"
+            style="margin-top:20px;background:#fbbf24;color:#1a0f00;border:none;border-radius:12px;padding:12px 24px;font:inherit;font-size:14px;font-weight:800;cursor:pointer">
+            J'ai compris ! 🎉
+          </button>`;
+      } else {
+        card.innerHTML = `
+          <div style="font-size:48px;margin-bottom:12px">😔</div>
+          <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:8px">Pas cette fois…</div>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Le siège gagnant est <strong style="color:#fbbf24">${pl.seatId}</strong><br>Bonne chance au prochain tirage !</div>
+          <button onclick="$('pLotteryWrap').classList.add('p-hidden')"
+            style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:var(--text);border-radius:12px;padding:10px 20px;font:inherit;font-size:13px;cursor:pointer">
+            OK
+          </button>`;
+      }
+      $('pLotteryWrap').classList.remove('p-hidden');
+      if (!isWinner) setTimeout(() => $('pLotteryWrap').classList.add('p-hidden'), 6000);
+    })
+    // ── Lampe de poche LED ────────────────────────────────────────────────────────
+    .on('broadcast', {event:'torch'}, ({payload:pl}) => {
+      if(pl.target && pl.target !== 'all') return; // pas ciblé (simple pour MVP4)
+      pHandleTorch(pl.pattern || 'off');
+    })
+
+    .subscribe();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SHOP
+// ═══════════════════════════════════════════════════════════════════
+function _refreshShopBtn(){
+  $('pShopBtn').classList.toggle('p-hidden', !pMenu.some(i=>i.enabled));
+}
+
+function pOpenShop(){
+  pRenderShop();
+  $('pShopWrap').classList.remove('p-hidden');
+}
+function pCloseShop(){
+  $('pShopWrap').classList.add('p-hidden');
+}
+
+function pRenderShop(){
+  const items = pMenu.filter(i=>i.enabled);
+  $('pShopSub').textContent = 'Livraison directe au siège ' + _pSeatId;
+  $('pShopItems').innerHTML = items.length
+    ? items.map(item => {
+        const done = !!pOrdered[item.id];
+        return `<div class="p-item">
+          <div class="p-item-icon">${item.icon}</div>
+          <div class="p-item-info">
+            <div class="p-item-name">${item.label}</div>
+            <div class="p-item-desc">${item.desc||''}</div>
+            ${item.price ? `<div class="p-item-price">${item.price} €</div>` : ''}
+          </div>
+          ${done
+            ? `<button class="p-item-btn done">✓ Commandé</button>`
+            : `<button class="p-item-btn" onclick="pOrder('${item.id}')">Commander</button>`
+          }
+        </div>`;
+      }).join('')
+    : `<div style="text-align:center;color:var(--muted);padding:28px 0;font-size:14px;line-height:1.5">
+        Le shop n'est pas encore ouvert.<br>Revenez pendant le match !
+      </div>`;
+  _refreshShopBtn();
+  pLoadMyOrders();
+}
+
+async function pOrder(id){
+  if(pOrdered[id]) return;
+  pOrdered[id] = true;
+  pRenderShop();
+  if(!pSupabase) return;
+  const item = pMenu.find(i=>i.id===id);
+  await pSupabase.from('orders').insert({
+    stadium_id   : CROWDLUMA.stadiumId,
+    seat_id      : _pSeatId,
+    row          : _pRow,
+    col          : _pCol,
+    item_id      : id,
+    item_label   : item?.label || id,
+    price        : item?.price || null,
+    participant_id: pPID,
+    stand        : _pStand  || null,
+    zone_id      : _pZone   || null,
+    block_id     : _pBlock  || null,
+  }).catch(()=>{});
+  setTimeout(pLoadMyOrders, 700);
+}
+
+async function pLoadMyOrders(){
+  const list = $('pMyOrdersList');
+  const wrap = $('pMyOrders');
+  if(!list || !wrap) return;
+  if(!pSupabase){ wrap.style.display='none'; return; }
+  const {data} = await pSupabase.from('orders')
+    .select('item_label,status,price,created_at')
+    .eq('participant_id', pPID)
+    .eq('stadium_id', CROWDLUMA.stadiumId)
+    .order('created_at', {ascending:false})
+    .limit(8)
+    .catch(()=>({data:null}));
+  if(!data?.length){ wrap.style.display='none'; return; }
+  const SLBL = {pending:'en attente', preparing:'en préparation', delivering:'en livraison', paid:'livré ✓', delivered:'livré ✓', cancelled:'annulé'};
+  const SCLR = {pending:'#fbbf24',   preparing:'#7dd3fc',        delivering:'#7dd3fc',       paid:'#34d399', delivered:'#34d399', cancelled:'#fb7185'};
+  wrap.style.display = 'block';
+  list.innerHTML = data.map(o => `
+    <div class="pmo-row">
+      <span>${o.item_label||'?'}${o.price ? ' · '+o.price+' €' : ''}</span>
+      <span class="pmo-tag" style="background:rgba(0,0,0,.2);color:${SCLR[o.status]||'#fbbf24'}">
+        ${SLBL[o.status]||o.status}
+      </span>
+    </div>`
+  ).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// NOTIFICATIONS
+// ═══════════════════════════════════════════════════════════════════
+function pShowNotif(msg){
+  $('pNotifText').textContent = msg;
+  const el = $('pNotif');
+  el.classList.remove('p-hidden');
+  el.style.animation = 'none'; el.offsetHeight; el.style.animation = '';
+  if(pNotifTimer) clearTimeout(pNotifTimer);
+  pNotifTimer = setTimeout(pDismissNotif, 8000);
+}
+function pDismissNotif(){
+  $('pNotif').classList.add('p-hidden');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// VOTE
+// ═══════════════════════════════════════════════════════════════════
+function _renderVote(vote){
+  $('pVoteQ').textContent = vote.question;
+  $('pVoteResult').classList.add('p-hidden');
+  $('pVoteOpts').innerHTML = vote.options.map((opt,i) =>
+    `<button onclick="pSubmitVote(${i})">${opt}</button>`
+  ).join('');
+  $('pVoteWrap').classList.remove('p-hidden');
+}
+
+async function pSubmitVote(optionIdx){
+  if(pVoted || !pVoteActive) return;
+  pVoted = true;
+  // Feedback immédiat
+  $('pVoteOpts').querySelectorAll('button').forEach((b,i) => {
+    b.disabled = true;
+    b.style.background  = i===optionIdx ? 'rgba(52,211,153,.2)'  : 'rgba(255,255,255,.04)';
+    b.style.borderColor = i===optionIdx ? 'var(--ok)'            : 'rgba(255,255,255,.08)';
+    b.style.color       = i===optionIdx ? 'var(--ok)'            : 'rgba(255,255,255,.4)';
+  });
+  $('pVoteResult').textContent = '✓ Vote enregistré…';
+  $('pVoteResult').classList.remove('p-hidden');
+  if(!pSupabase || !pVoteActive.id) return;
+  // Enregistrer dans Supabase
+  await pSupabase.from('vote_responses').insert({
+    vote_id: pVoteActive.id, seat_id: _pSeatId, option_idx: optionIdx,
+  }).catch(()=>{});
+  // Afficher résultats actuels
+  const {data} = await pSupabase.from('vote_responses')
+    .select('option_idx').eq('vote_id', pVoteActive.id)
+    .catch(()=>({data:null}));
+  if(data?.length){
+    const total  = data.length;
+    const counts = pVoteActive.options.map((_,i) => data.filter(r=>r.option_idx===i).length);
+    $('pVoteResult').innerHTML = pVoteActive.options.map((opt,i) => {
+      const pct = Math.round((counts[i]/total)*100);
+      const sel = i===optionIdx;
+      return `<div class="vr-bar">
+        <div class="vr-fill" style="width:${pct}%;background:${sel?'var(--ok)':'rgba(255,255,255,.3)'}"></div>
+        <div class="vr-lbl">
+          <span${sel?' style="font-weight:700;color:var(--ok)"':''}>${opt}</span>
+          <span style="font-weight:700">${pct}%</span>
+        </div>
+      </div>`;
+    }).join('');
+  } else {
+    $('pVoteResult').textContent = '✓ Vote enregistré';
+  }
+  setTimeout(() => $('pVoteWrap').classList.add('p-hidden'), 4000);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// LAMPE DE POCHE LED (torch)
+// ═══════════════════════════════════════════════════════════════════
+let _torchStream = null, _torchTrack = null, _torchInterval = null;
+
+async function _getTorchTrack() {
+  if (_torchTrack) return _torchTrack;
+  try {
+    _torchStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment' } });
+    _torchTrack  = _torchStream.getVideoTracks()[0];
+    return _torchTrack;
+  } catch(e) { return null; }
+}
+
+async function _setTorch(on) {
+  const track = await _getTorchTrack();
+  if (!track) return;
+  try { await track.applyConstraints({ advanced: [{ torch: on }] }); } catch(e){}
+}
+
+function _stopTorch() {
+  if (_torchInterval) { clearInterval(_torchInterval); _torchInterval = null; }
+  if (_torchStream) { _torchStream.getTracks().forEach(t=>t.stop()); _torchStream=null; _torchTrack=null; }
+  const ind = $('pTorchIndicator');
+  if (ind) ind.classList.remove('on');
+}
+
+async function pHandleTorch(pattern) {
+  const ind = $('pTorchIndicator');
+  if (_torchInterval) { clearInterval(_torchInterval); _torchInterval = null; }
+  if (pattern === 'off') {
+    await _setTorch(false);
+    _stopTorch();
+    return;
+  }
+  if (ind) ind.classList.add('on');
+  if (pattern === 'solid') {
+    await _setTorch(true);
+  } else {
+    const intervals = { slow: 1000, fast: 333 };
+    let state = true;
+    await _setTorch(true);
+    _torchInterval = setInterval(async () => {
+      state = !state;
+      await _setTorch(state);
+    }, intervals[pattern] || 500);
+  }
+}
+</script>
+</body>
+</html>

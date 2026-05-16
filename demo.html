@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>CrowdLuma — Démo Siège A9-04</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    html,body{height:100%;overflow:hidden;font-family:Inter,system-ui,-apple-system,sans-serif;user-select:none}
+
+    /* ── Fond couleur ── */
+    #bg{
+      position:fixed;inset:0;
+      background:#22c55e;
+      transition:background .55s cubic-bezier(.4,0,.2,1);
+      will-change:background;
+    }
+
+    /* ── Badge DÉMO ── */
+    #demoBadge{
+      position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:50;
+      background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.25);
+      color:rgba(255,255,255,.7);border-radius:20px;padding:4px 12px;
+      font-size:10px;font-weight:700;letter-spacing:.08em;
+      backdrop-filter:blur(8px);pointer-events:none;
+    }
+
+    /* ── Barre du haut ── */
+    #topBar{
+      position:fixed;top:0;left:0;right:0;z-index:10;
+      padding:18px 20px 32px;
+      background:linear-gradient(to bottom,rgba(0,0,0,.52) 0%,transparent 100%);
+      display:flex;align-items:flex-start;justify-content:space-between;
+      pointer-events:none;
+    }
+    #seatId{font-size:30px;font-weight:900;letter-spacing:-.04em;
+      color:white;text-shadow:0 2px 12px rgba(0,0,0,.5),0 0 30px rgba(0,0,0,.3);line-height:1}
+    #seatDetails{font-size:11px;color:rgba(255,255,255,.75);margin-top:4px;
+      text-shadow:0 1px 6px rgba(0,0,0,.5);letter-spacing:.02em}
+    #pid{font-size:9px;color:rgba(255,255,255,.35);text-align:right;font-variant-numeric:tabular-nums;
+      text-shadow:0 1px 4px rgba(0,0,0,.5)}
+
+    /* ── Label central discret ── */
+    #centerLabel{
+      position:fixed;inset:0;z-index:4;
+      display:flex;align-items:center;justify-content:center;
+      pointer-events:none;
+    }
+    #frameLabel{
+      font-size:80px;font-weight:900;letter-spacing:-.06em;
+      opacity:.12;transition:opacity .4s,color .55s;
+      text-shadow:0 4px 24px rgba(0,0,0,.15);
+    }
+
+    /* ── Flèches swipe (desktop) ── */
+    .swipe-arrow{
+      position:fixed;top:50%;transform:translateY(-50%);z-index:12;
+      background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.2);
+      color:rgba(255,255,255,.65);border-radius:50%;
+      width:40px;height:40px;font-size:20px;
+      display:flex;align-items:center;justify-content:center;
+      cursor:pointer;backdrop-filter:blur(6px);
+      transition:opacity .3s,background .2s;
+    }
+    .swipe-arrow:hover{background:rgba(0,0,0,.45)}
+    .swipe-arrow:active{transform:translateY(-50%) scale(.92)}
+    #arrowLeft{left:12px}
+    #arrowRight{right:12px}
+    .swipe-arrow.hidden{opacity:0;pointer-events:none}
+
+    /* ── Hint swipe ── */
+    #swipeHint{
+      position:fixed;bottom:155px;left:0;right:0;z-index:10;
+      text-align:center;font-size:11px;color:rgba(255,255,255,.4);
+      pointer-events:none;transition:opacity 1.2s;
+      text-shadow:0 1px 4px rgba(0,0,0,.4);
+    }
+
+    /* ── Barre de progression ── */
+    #progressWrap{
+      position:fixed;bottom:105px;left:20px;right:20px;z-index:10;
+    }
+    #frameSteps{display:flex;gap:5px;margin-bottom:10px}
+    .fstep{
+      height:3px;border-radius:2px;flex:1;
+      background:rgba(255,255,255,.2);
+      transition:background .3s;
+      cursor:pointer;
+    }
+    .fstep.done{background:rgba(255,255,255,.8)}
+    .fstep.active{background:rgba(255,255,255,.55)}
+
+    #progressBar{height:3px;border-radius:2px;background:rgba(255,255,255,.25);overflow:hidden}
+    #progressFill{height:100%;background:rgba(255,255,255,.9);border-radius:2px;transition:width .1s linear}
+
+    #timeLeft{
+      margin-top:7px;text-align:center;
+      font-size:13px;color:rgba(255,255,255,.55);font-variant-numeric:tabular-nums;
+      text-shadow:0 1px 4px rgba(0,0,0,.4);
+    }
+
+    /* ── Bouton Shop ── */
+    #shopBtn{
+      position:fixed;bottom:34px;right:20px;z-index:20;
+      background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.28);
+      color:rgba(255,255,255,.92);border-radius:28px;padding:12px 20px;
+      font:inherit;font-size:14px;font-weight:700;cursor:pointer;
+      backdrop-filter:blur(10px);
+      box-shadow:0 4px 20px rgba(0,0,0,.35);
+      display:flex;align-items:center;gap:8px;
+      transition:transform .1s;
+    }
+    #shopBtn:active{transform:scale(.96)}
+    #shopBadge{
+      background:#ef4444;color:white;border-radius:10px;padding:1px 7px;
+      font-size:11px;font-weight:800;display:none;
+    }
+
+    /* ── Lien admin ── */
+    #adminLink{
+      position:fixed;bottom:40px;left:16px;z-index:10;
+      font-size:9px;color:rgba(255,255,255,.15);text-decoration:none;
+    }
+
+    /* ── Notification ── */
+    #notif{
+      position:fixed;top:0;left:0;right:0;z-index:40;
+      padding:16px 16px 14px;
+      display:none;flex-direction:row;align-items:flex-start;gap:12px;
+      background:rgba(251,191,36,.18);
+      border-bottom:1px solid rgba(251,191,36,.38);
+      backdrop-filter:blur(14px);
+      animation:slideDown .3s ease;
+    }
+    #notif.show{display:flex}
+    #notifText{flex:1;font-size:14px;color:rgba(255,255,255,.95);line-height:1.4;
+      text-shadow:0 1px 4px rgba(0,0,0,.3)}
+    #notifClose{background:none;border:none;color:rgba(255,255,255,.55);
+      font-size:22px;cursor:pointer;padding:0;line-height:1;flex-shrink:0}
+    @keyframes slideDown{from{transform:translateY(-100%)}to{transform:translateY(0)}}
+
+    /* ── Overlay shop ── */
+    #shopWrap{
+      position:fixed;inset:0;z-index:30;
+      background:rgba(0,0,0,.55);
+      display:none;align-items:flex-end;
+      backdrop-filter:blur(3px);
+    }
+    #shopWrap.open{display:flex;animation:fadeBg .25s ease}
+    @keyframes fadeBg{from{opacity:0}to{opacity:1}}
+
+    #shopCard{
+      width:100%;background:#0d1a2c;
+      border-top:1px solid rgba(255,255,255,.12);
+      border-radius:22px 22px 0 0;
+      padding:0 0 44px;max-height:82dvh;overflow-y:auto;
+      animation:slideUp .3s cubic-bezier(.4,0,.2,1);
+    }
+    @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+
+    #shopHandle{display:flex;justify-content:center;padding:14px 0 6px}
+    #shopHandle div{width:38px;height:4px;border-radius:2px;background:rgba(255,255,255,.18)}
+
+    #shopHeader{
+      display:flex;justify-content:space-between;align-items:center;
+      padding:8px 20px 16px;
+    }
+    #shopHeaderTitle{font-size:19px;font-weight:800;color:#eef5ff}
+    #shopHeaderSub{font-size:11px;color:#7a98b8;margin-top:2px}
+    #shopClose{
+      background:rgba(255,255,255,.08);border:none;border-radius:50%;
+      width:32px;height:32px;color:rgba(255,255,255,.55);font-size:18px;
+      cursor:pointer;display:flex;align-items:center;justify-content:center;
+    }
+
+    /* Items */
+    #shopItems{padding:0 16px}
+    .sitem{
+      display:flex;align-items:center;gap:14px;
+      padding:14px;border-radius:16px;
+      background:rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.08);
+      margin-bottom:8px;transition:background .15s;
+    }
+    .sitem:active{background:rgba(255,255,255,.09)}
+    .sicon{font-size:30px;flex-shrink:0}
+    .sinfo{flex:1}
+    .sname{font-size:15px;font-weight:700;color:#eef5ff}
+    .sdesc{font-size:12px;color:#7a98b8;margin-top:2px;line-height:1.35}
+    .sprice{font-size:13px;font-weight:700;color:#7dd3fc;margin-top:3px}
+    .sbtn{
+      background:#7dd3fc;color:#07111f;border:none;border-radius:12px;
+      padding:10px 16px;font:inherit;font-size:13px;font-weight:800;
+      cursor:pointer;flex-shrink:0;transition:transform .1s;white-space:nowrap;
+    }
+    .sbtn:active{transform:scale(.93)}
+    .sbtn.ordered{
+      background:rgba(52,211,153,.14);color:#34d399;
+      border:1px solid rgba(52,211,153,.3);
+    }
+    .sbtn.ordered:active{transform:none;cursor:default}
+
+    /* Mes commandes */
+    #myOrders{
+      margin:14px 16px 0;padding-top:14px;
+      border-top:1px solid rgba(255,255,255,.07);
+      display:none;
+    }
+    .mo-label{font-size:11px;font-weight:700;color:#7a98b8;
+      text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+    .mo-row{
+      display:flex;justify-content:space-between;align-items:center;
+      padding:9px 11px;background:rgba(255,255,255,.04);
+      border-radius:10px;margin-bottom:4px;font-size:13px;color:#eef5ff;
+    }
+    .mo-tag{font-size:11px;padding:2px 9px;border-radius:10px}
+    .mo-tag.pending{background:rgba(251,191,36,.15);color:#fbbf24}
+    .mo-tag.delivering{background:rgba(125,211,252,.15);color:#7dd3fc}
+    .mo-tag.done{background:rgba(52,211,153,.15);color:#34d399}
+
+    /* ── Fin de séquence ── */
+    #endScreen{
+      position:fixed;inset:0;z-index:20;
+      display:none;flex-direction:column;
+      align-items:center;justify-content:center;
+      background:rgba(5,7,15,.75);backdrop-filter:blur(8px);
+      color:white;text-align:center;padding:40px;
+      animation:fadeBg .5s ease;
+    }
+    #endScreen.show{display:flex}
+    #endScreen .emo{font-size:70px;margin-bottom:20px}
+    #endScreen h2{font-size:28px;font-weight:900;margin-bottom:8px}
+    #endScreen p{color:rgba(255,255,255,.55);font-size:15px;line-height:1.5;margin-bottom:28px}
+    #replayBtn{
+      background:#7dd3fc;color:#07111f;border:none;border-radius:14px;
+      padding:14px 30px;font:inherit;font-size:16px;font-weight:800;cursor:pointer;
+    }
+    #replayBtn:active{transform:scale(.96)}
+
+    /* ── Flash frame transition ── */
+    #flash{
+      position:fixed;inset:0;z-index:8;
+      background:white;opacity:0;pointer-events:none;
+      transition:opacity .12s;
+    }
+    #flash.on{opacity:.18}
+
+    #demoControls{position:fixed;bottom:34px;left:16px;z-index:20;display:flex;gap:6px;align-items:center}
+    .demo-ctrl-btn{background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.75);
+      border-radius:14px;padding:7px 12px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;
+      backdrop-filter:blur(8px);transition:opacity .15s}
+    .demo-ctrl-btn:active{opacity:.7}
+    /* Overlay loterie (même style que index.html) */
+    #dLotteryWrap{position:fixed;inset:0;z-index:35;display:none;align-items:center;justify-content:center;backdrop-filter:blur(6px)}
+    #dLotteryWrap.show{display:flex}
+    #dLotteryCard{background:linear-gradient(135deg,#1a0f00,#2d1a00);border:2px solid rgba(251,191,36,.5);
+      border-radius:24px;padding:32px 28px;width:min(88vw,360px);text-align:center;
+      animation:lotteryPop .4s cubic-bezier(.34,1.56,.64,1)}
+    @keyframes lotteryPop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+  </style>
+</head>
+<body>
+
+<div id="bg"></div>
+<div id="flash"></div>
+
+<!-- Badge démo -->
+<div id="demoBadge">🎬 SIMULATION — Tribune Nord · Bloc A · Rang 9 · Siège 4</div>
+
+<!-- Top bar -->
+<div id="topBar">
+  <div>
+    <div id="seatId">A9-04</div>
+    <div id="seatDetails">Tribune Nord · Bloc A · Rang 9 · Siège 4</div>
+  </div>
+  <div id="pid">ID 3F2A8C1D</div>
+</div>
+
+<!-- Label central -->
+<div id="centerLabel"><div id="frameLabel">VERT</div></div>
+
+<!-- Flèches desktop -->
+<button class="swipe-arrow hidden" id="arrowLeft" onclick="goFrame(-1)">‹</button>
+<button class="swipe-arrow" id="arrowRight" onclick="goFrame(1)">›</button>
+
+<!-- Hint swipe -->
+<div id="swipeHint">← glisse pour naviguer →</div>
+
+<!-- Progression -->
+<div id="progressWrap">
+  <div id="frameSteps"></div>
+  <div id="progressBar"><div id="progressFill" style="width:0%"></div></div>
+  <div id="timeLeft">10s</div>
+</div>
+
+<!-- Shop button -->
+<button id="shopBtn" onclick="openShop()">🛒 Shop <span id="shopBadge"></span></button>
+
+<div id="demoControls">
+  <button class="demo-ctrl-btn" onclick="simLottery()" title="Simuler un tirage gagnant">🎰</button>
+  <button class="demo-ctrl-btn" id="dTorchBtn" onclick="simTorch()" title="Simuler la lampe (visuel)">🔦</button>
+  <a href="stadium-admin.html" id="adminLink" style="font-size:9px;color:rgba(255,255,255,.15);text-decoration:none">admin ↗</a>
+</div>
+
+<!-- Notification -->
+<div id="notif">
+  <div id="notifText"></div>
+  <button id="notifClose" onclick="closeNotif()">×</button>
+</div>
+
+<!-- Shop overlay -->
+<div id="shopWrap" onclick="if(event.target===this)closeShop()">
+  <div id="shopCard">
+    <div id="shopHandle"><div></div></div>
+    <div id="shopHeader">
+      <div>
+        <div id="shopHeaderTitle">🛒 Commander</div>
+        <div id="shopHeaderSub">Livraison directe à votre siège</div>
+      </div>
+      <button id="shopClose" onclick="closeShop()">×</button>
+    </div>
+    <div id="shopItems"></div>
+    <div id="myOrders">
+      <div class="mo-label">Mes commandes</div>
+      <div id="myOrdersList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Fin de séquence -->
+<div id="endScreen">
+  <div class="emo">🎉</div>
+  <h2>Chorégraphie terminée</h2>
+  <p>Fin de la séquence de<br>Tribune Nord · Bloc A.<br>Merci d'avoir participé !</p>
+  <button id="replayBtn" onclick="replay()">↺ Rejouer la démo</button>
+</div>
+
+<div id="dLotteryWrap">
+  <div id="dLotteryCard">
+    <div style="font-size:64px;margin-bottom:12px">🏆</div>
+    <div style="font-size:24px;font-weight:900;color:#fbbf24;margin-bottom:8px">VOUS GAGNEZ !</div>
+    <div style="font-size:15px;color:rgba(255,255,255,.9);margin-bottom:16px">Maillot dédicacé + Places VIP !</div>
+    <div style="font-size:13px;color:rgba(255,255,255,.55)">Présentez-vous à l'accueil avec votre siège :<br>
+      <strong style="color:#fbbf24;font-size:16px">A09-04</strong>
+    </div>
+    <button onclick="document.getElementById('dLotteryWrap').classList.remove('show')"
+      style="margin-top:20px;background:#fbbf24;color:#1a0f00;border:none;border-radius:12px;padding:12px 24px;font:inherit;font-size:14px;font-weight:800;cursor:pointer">
+      J'ai compris ! 🎉
+    </button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════════
+const SEAT = { stand:'Tribune Nord', block:'A', row:9, col:4, id:'A9-04' };
+
+const SEQ = [
+  { color:'#22c55e', label:'VERT',   dur:10, name:'Frame 1 — Vert' },
+  { color:'#eab308', label:'JAUNE',  dur:8,  name:'Frame 2 — Jaune' },
+  { color:'#f97316', label:'ORANGE', dur:5,  name:'Frame 3 — Orange' },
+  { color:'#16a34a', label:'VERT',   dur:30, name:'Frame 4 — Vert' },
+  { color:'#040404', label:'NOIR',   dur:2,  name:'Frame 5 — Noir' },
+];
+
+const MENU = [
+  { id:'beer',  icon:'🍺', name:'Boisson',    desc:'Bière, eau, soda livré à votre siège', price:'4.50 €' },
+  { id:'snack', icon:'🌭', name:'Snack',      desc:'Hot-dog, frites et snacks maison',     price:'3.00 €' },
+  { id:'combo', icon:'🥤', name:'Menu Combo', desc:'Boisson + snack au meilleur prix',     price:'7.00 €' },
+  { id:'prog',  icon:'📋', name:'Programme',  desc:'Composition des équipes du jour',      price:'Gratuit' },
+];
+
+// ═══════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════
+let frameIdx = 0;
+let elapsed  = 0;       // secondes dans la frame courante
+let ticker   = null;
+let shopOpen = false;
+let ordered  = {};      // { id: { name, price, status } }
+let notifTimer = null;
+
+// DOM
+const bg           = document.getElementById('bg');
+const flash        = document.getElementById('flash');
+const frameLabel   = document.getElementById('frameLabel');
+const progressFill = document.getElementById('progressFill');
+const timeLeftEl   = document.getElementById('timeLeft');
+const frameSteps   = document.getElementById('frameSteps');
+const shopBadge    = document.getElementById('shopBadge');
+const swipeHint    = document.getElementById('swipeHint');
+const arrowLeft    = document.getElementById('arrowLeft');
+const arrowRight   = document.getElementById('arrowRight');
+const notifEl      = document.getElementById('notif');
+const notifText    = document.getElementById('notifText');
+const endScreen    = document.getElementById('endScreen');
+const myOrders     = document.getElementById('myOrders');
+
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+function init(){
+  // Construire les indicateurs de frames
+  frameSteps.innerHTML = SEQ.map((f,i)=>
+    `<div class="fstep" id="step${i}" style="flex:${f.dur}" title="${f.name}" onclick="jumpTo(${i})"></div>`
+  ).join('');
+
+  applyFrame(0);
+  startTicker();
+
+  // Masquer hint après 4s
+  setTimeout(()=>{ swipeHint.style.opacity='0'; }, 4000);
+
+  // Notif démo
+  setTimeout(()=>showNotif('📢 Tribune Nord — Séquence chorégraphie démarrée !'), 2500);
+
+  // Deuxième notif
+  setTimeout(()=>showNotif('⚽ Coup de sifflet ! Restez debout pour la prochaine séquence.'), 22000);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FRAMES
+// ═══════════════════════════════════════════════════════════════
+function applyFrame(idx, dir){
+  const prev = SEQ[frameIdx];
+  frameIdx = idx;
+  elapsed  = 0;
+  const f  = SEQ[idx];
+
+  // Flash de transition
+  flash.classList.add('on');
+  setTimeout(()=>flash.classList.remove('on'), 120);
+
+  // Couleur fond
+  bg.style.background = f.color;
+
+  // Label central
+  frameLabel.textContent = f.label;
+  const dark = isDark(f.color);
+  frameLabel.style.color = dark ? 'rgba(255,255,255,1)' : 'rgba(0,0,0,.8)';
+
+  // Mise à jour indicateurs
+  SEQ.forEach((_,i)=>{
+    const el = document.getElementById('step'+i);
+    el.classList.remove('done','active');
+    if(i < idx) el.classList.add('done');
+    else if(i === idx) el.classList.add('active');
+  });
+
+  // Flèches
+  arrowLeft.classList.toggle('hidden', idx === 0);
+  arrowRight.classList.toggle('hidden', idx >= SEQ.length-1);
+
+  updateProgress();
+}
+
+function updateProgress(){
+  const f   = SEQ[frameIdx];
+  const pct = Math.min(100,(elapsed/f.dur)*100);
+  progressFill.style.width = pct+'%';
+  const rem = Math.max(0, f.dur - elapsed);
+  timeLeftEl.textContent = rem.toFixed(0)+'s restante'+(rem>=2?'s':'');
+}
+
+function goFrame(delta){
+  const next = frameIdx + delta;
+  if(next < 0 || next >= SEQ.length) return;
+  applyFrame(next, delta > 0 ? 'left' : 'right');
+}
+
+function jumpTo(idx){ applyFrame(idx); }
+
+function endSequence(){
+  clearInterval(ticker); ticker=null;
+  // Tout cocher
+  SEQ.forEach((_,i)=>{
+    const el=document.getElementById('step'+i);
+    el.classList.remove('active'); el.classList.add('done');
+  });
+  progressFill.style.width='100%';
+  timeLeftEl.textContent='Terminé';
+  arrowLeft.classList.add('hidden');
+  arrowRight.classList.add('hidden');
+  endScreen.classList.add('show');
+}
+
+function replay(){
+  endScreen.classList.remove('show');
+  ordered={};
+  shopBadge.style.display='none';
+  applyFrame(0);
+  startTicker();
+  renderShop();
+  setTimeout(()=>showNotif('📢 Tribune Nord — Séquence redémarrée !'), 500);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TICKER
+// ═══════════════════════════════════════════════════════════════
+function startTicker(){
+  if(ticker) clearInterval(ticker);
+  ticker = setInterval(()=>{
+    if(shopOpen) return; // pause si shop ouvert
+    elapsed += 0.1;
+    if(elapsed >= SEQ[frameIdx].dur){
+      if(frameIdx < SEQ.length-1) applyFrame(frameIdx+1,'left');
+      else endSequence();
+    } else {
+      updateProgress();
+    }
+  }, 100);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SWIPE (touch + souris)
+// ═══════════════════════════════════════════════════════════════
+let tx=0, ty=0;
+document.addEventListener('touchstart', e=>{
+  tx=e.touches[0].clientX; ty=e.touches[0].clientY;
+},{passive:true});
+document.addEventListener('touchend', e=>{
+  if(shopOpen) return;
+  const dx=e.changedTouches[0].clientX-tx;
+  const dy=e.changedTouches[0].clientY-ty;
+  if(Math.abs(dx)<50 || Math.abs(dy)>Math.abs(dx)*.75) return; // pas un swipe horizontal
+  goFrame(dx<0?1:-1);
+},{passive:true});
+
+let mdx=0, mdown=false;
+document.addEventListener('mousedown',e=>{
+  if(e.target.closest('#shopWrap,#shopBtn,#notif,button,a,.fstep')) return;
+  mdown=true; mdx=e.clientX;
+});
+document.addEventListener('mouseup',e=>{
+  if(!mdown) return; mdown=false;
+  if(shopOpen) return;
+  const dx=e.clientX-mdx;
+  if(Math.abs(dx)<70) return;
+  goFrame(dx<0?1:-1);
+});
+
+// ═══════════════════════════════════════════════════════════════
+// SHOP
+// ═══════════════════════════════════════════════════════════════
+function openShop(){
+  shopOpen=true;
+  renderShop();
+  document.getElementById('shopWrap').classList.add('open');
+}
+function closeShop(){
+  shopOpen=false;
+  document.getElementById('shopWrap').classList.remove('open');
+}
+
+function orderItem(id){
+  if(ordered[id]) return;
+  const item=MENU.find(i=>i.id===id);
+  if(!item) return;
+  ordered[id]={ name:item.name, price:item.price, status:'pending' };
+  const n=Object.keys(ordered).length;
+  shopBadge.textContent=n;
+  shopBadge.style.display='inline';
+  renderShop();
+
+  // Simulation de progression de statut
+  setTimeout(()=>{ if(ordered[id]){ordered[id].status='delivering'; renderMyOrders(); }}, 9000);
+  setTimeout(()=>{
+    if(ordered[id]){
+      ordered[id].status='delivered'; renderMyOrders();
+      closeShop();
+      showNotif(`✅ Votre ${item.name} est en chemin !`);
+    }
+  }, 22000);
+}
+
+function renderShop(){
+  document.getElementById('shopItems').innerHTML = MENU.map(item=>{
+    const ok=!!ordered[item.id];
+    return `<div class="sitem">
+      <div class="sicon">${item.icon}</div>
+      <div class="sinfo">
+        <div class="sname">${item.name}</div>
+        <div class="sdesc">${item.desc}</div>
+        <div class="sprice">${item.price}</div>
+      </div>
+      ${ok
+        ? `<button class="sbtn ordered">✓ Commandé</button>`
+        : `<button class="sbtn" onclick="orderItem('${item.id}')">Commander</button>`
+      }
+    </div>`;
+  }).join('');
+  renderMyOrders();
+}
+
+function renderMyOrders(){
+  const items=Object.entries(ordered);
+  if(!items.length){ myOrders.style.display='none'; return; }
+  myOrders.style.display='block';
+  const LABEL={pending:'en attente',delivering:'en livraison 🏃',delivered:'livré ✓'};
+  const CLS  ={pending:'pending',   delivering:'delivering',      delivered:'done'};
+  document.getElementById('myOrdersList').innerHTML = items.map(([id,o])=>`
+    <div class="mo-row">
+      <span>${o.name} · ${o.price}</span>
+      <span class="mo-tag ${CLS[o.status]}">${LABEL[o.status]}</span>
+    </div>`
+  ).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// NOTIFICATIONS
+// ═══════════════════════════════════════════════════════════════
+function showNotif(msg){
+  notifText.textContent=msg;
+  notifEl.classList.add('show');
+  if(notifTimer) clearTimeout(notifTimer);
+  notifTimer=setTimeout(closeNotif, 8000);
+}
+function closeNotif(){
+  notifEl.classList.remove('show');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UTIL
+// ═══════════════════════════════════════════════════════════════
+function isDark(hex){
+  const r=parseInt(hex.slice(1,3),16)||0;
+  const g=parseInt(hex.slice(3,5),16)||0;
+  const b=parseInt(hex.slice(5,7),16)||0;
+  return (r*299+g*587+b*114)/1000 < 140;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GO
+// ═══════════════════════════════════════════════════════════════
+init();
+
+// ── Simulations demo ───────────────────────────────────────────────────────────
+let _dTorchOn = false;
+function simLottery() {
+  // Suspense : fond qui pulse 3s
+  let pulse = true, i = 0;
+  const iv = setInterval(() => {
+    document.getElementById('bg').style.background = pulse ? '#fbbf24' : '#ef4444';
+    pulse = !pulse;
+    if(++i > 14) {
+      clearInterval(iv);
+      // Restaurer la couleur de la frame actuelle
+      const f = SEQ[frameIdx];
+      document.getElementById('bg').style.background = f.color;
+      // Afficher l'overlay gagnant
+      document.getElementById('dLotteryWrap').classList.add('show');
+    }
+  }, 200);
+}
+function simTorch() {
+  _dTorchOn = !_dTorchOn;
+  const btn = document.getElementById('dTorchBtn');
+  // Simulation visuelle : overlay blanc très légèrement opaque
+  let overlay = document.getElementById('dTorchOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'dTorchOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:3;pointer-events:none;background:rgba(255,255,255,0);transition:background .2s';
+    document.body.appendChild(overlay);
+  }
+  if (_dTorchOn) {
+    overlay.style.background = 'rgba(255,255,255,.08)';
+    btn.textContent = '🔦 ON';
+    btn.style.color = '#fbbf24';
+  } else {
+    overlay.style.background = 'rgba(255,255,255,0)';
+    btn.textContent = '🔦';
+    btn.style.color = 'rgba(255,255,255,.75)';
+  }
+}
+</script>
+</body>
+</html>

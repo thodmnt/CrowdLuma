@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Gestion Commandes — CrowdLuma</title>
+  <style>
+    :root{
+      --bg:#07111f;--card:#111c2e;--text:#eef5ff;--muted:#9fb0c7;--line:rgba(255,255,255,.1);
+      --accent:#7dd3fc;--ok:#34d399;--warn:#fbbf24;--bad:#fb7185;--purple:#a78bfa;
+      --c-pending:#fbbf24;--c-preparing:#7dd3fc;--c-delivering:#a78bfa;--c-paid:#34d399;
+    }
+    *{box-sizing:border-box;margin:0}
+    body{background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif;display:grid;grid-template-rows:56px 1fr;height:100dvh;overflow:hidden}
+
+    /* ── Top bar ── */
+    #topbar{display:flex;align-items:center;padding:0 16px;border-bottom:1px solid var(--line);gap:10px;background:rgba(7,17,31,.97);flex-shrink:0}
+    #tbLogo{font-size:22px;flex-shrink:0}
+    #tbTitle{font-size:16px;font-weight:800;white-space:nowrap}
+    .tb-sep{width:1px;height:24px;background:var(--line);flex-shrink:0}
+    #filterSelect{background:rgba(255,255,255,.07);border:1px solid var(--line);border-radius:8px;color:var(--text);font:inherit;font-size:13px;padding:5px 10px;cursor:pointer}
+    .stat-chip{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap;flex-shrink:0}
+    .sc-warn{background:rgba(251,191,36,.15);color:var(--warn)}
+    .sc-blue{background:rgba(125,211,252,.15);color:var(--accent)}
+    .sc-purple{background:rgba(167,139,250,.15);color:var(--purple)}
+    .sc-green{background:rgba(52,211,153,.15);color:var(--ok)}
+    #tbRight{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0}
+    .tb-btn{background:rgba(255,255,255,.07);border:1px solid var(--line);border-radius:8px;color:var(--muted);font:inherit;font-size:14px;padding:5px 10px;cursor:pointer;white-space:nowrap}
+    .tb-btn.active{color:var(--accent);border-color:rgba(125,211,252,.4);background:rgba(125,211,252,.08)}
+    .sb-dot{width:8px;height:8px;border-radius:50%;background:var(--bad);flex-shrink:0;cursor:pointer}
+    .sb-dot.ok{background:var(--ok)}
+
+    /* ── Kanban board ── */
+    #board{display:grid;grid-template-columns:repeat(4,1fr);height:100%;overflow:hidden}
+    .col{display:flex;flex-direction:column;border-right:1px solid var(--line);overflow:hidden;min-width:0}
+    .col:last-child{border-right:none}
+
+    .col-head{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;flex-shrink:0}
+    .col-pending   .col-head{border-top:3px solid var(--c-pending)}
+    .col-preparing .col-head{border-top:3px solid var(--c-preparing)}
+    .col-delivering .col-head{border-top:3px solid var(--c-delivering)}
+    .col-paid      .col-head{border-top:3px solid var(--c-paid)}
+
+    .col-icon{font-size:16px;flex-shrink:0}
+    .col-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.07em}
+    .col-pending   .col-title{color:var(--c-pending)}
+    .col-preparing .col-title{color:var(--c-preparing)}
+    .col-delivering .col-title{color:var(--c-delivering)}
+    .col-paid      .col-title{color:var(--c-paid)}
+
+    .col-count{font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:auto}
+    .col-pending   .col-count{background:rgba(251,191,36,.15);color:var(--c-pending)}
+    .col-preparing .col-count{background:rgba(125,211,252,.15);color:var(--c-preparing)}
+    .col-delivering .col-count{background:rgba(167,139,250,.15);color:var(--c-delivering)}
+    .col-paid      .col-count{background:rgba(52,211,153,.15);color:var(--c-paid)}
+
+    /* revenue in paid header */
+    .col-revenue{font-size:11px;color:var(--ok);font-weight:700;margin-left:6px}
+
+    .col-cards{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;scrollbar-width:thin}
+    .col-empty{text-align:center;color:var(--muted);font-size:12px;padding:40px 12px;opacity:.5;line-height:1.6}
+
+    /* ── Order cards ── */
+    .order-card{background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:12px 13px;position:relative;transition:transform .12s,box-shadow .12s;animation:cardIn .2s ease}
+    .order-card:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(0,0,0,.35)}
+    @keyframes cardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+    /* Urgent > 5 min waiting */
+    .order-card.urgent{border-color:rgba(251,99,99,.45);background:rgba(251,99,99,.06)}
+
+    /* Flash on new arrive */
+    .order-card.new-flash{animation:newFlash .7s ease}
+    @keyframes newFlash{0%,100%{box-shadow:none}40%{box-shadow:0 0 0 3px rgba(251,191,36,.7)}}
+
+    /* Paid cards slightly dimmed */
+    .col-paid .order-card{opacity:.7}
+
+    .card-top{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px}
+    .card-icon{font-size:24px;line-height:1;flex-shrink:0;padding-top:1px}
+    .card-info{flex:1;min-width:0}
+    .card-name{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+    .card-price{font-size:13px;font-weight:800;color:var(--accent);flex-shrink:0}
+
+    .card-loc{font-size:11px;color:var(--muted);margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .card-seat{font-size:15px;font-weight:800;font-family:'Courier New',monospace;letter-spacing:.04em;margin-bottom:10px;color:var(--text)}
+
+    .card-foot{display:flex;align-items:center;gap:6px}
+    .card-time{font-size:11px;color:var(--muted);flex:1}
+    .card-time.urgent{color:var(--bad);font-weight:700}
+
+    .card-action{font:inherit;font-size:12px;font-weight:800;padding:7px 12px;border-radius:10px;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:filter .12s}
+    .card-action:hover{filter:brightness(1.15)}
+    .col-pending   .card-action{background:rgba(251,191,36,.18);color:var(--warn);border:1px solid rgba(251,191,36,.4)}
+    .col-preparing .card-action{background:rgba(125,211,252,.18);color:var(--accent);border:1px solid rgba(125,211,252,.4)}
+    .col-delivering .card-action{background:rgba(167,139,250,.18);color:var(--purple);border:1px solid rgba(167,139,250,.4)}
+
+    .card-cancel{position:absolute;top:7px;right:7px;background:none;border:none;color:rgba(255,255,255,.18);font-size:17px;cursor:pointer;padding:2px 5px;border-radius:6px;line-height:1;transition:color .12s,background .12s}
+    .card-cancel:hover{color:var(--bad);background:rgba(251,99,99,.12)}
+
+    /* quantity badge */
+    .card-qty{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.12);font-size:11px;font-weight:800;margin-left:4px;flex-shrink:0}
+
+    /* ── Config modal ── */
+    #cfgModal{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.65);backdrop-filter:blur(5px);display:none;place-items:center}
+    #cfgModal.open{display:grid}
+    #cfgBox{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:28px;width:min(94%,420px);max-height:92dvh;overflow-y:auto}
+    .cfg-title{font-size:18px;font-weight:800;margin-bottom:6px}
+    .cfg-sub{font-size:12px;color:var(--muted);margin-bottom:18px;line-height:1.5}
+    .cfg-label{font-size:12px;color:var(--muted);margin-bottom:4px;display:block;margin-top:12px}
+    .cfg-input{width:100%;padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:#081424;color:var(--text);font:inherit;font-size:13px}
+    .cfg-btn{width:100%;margin-top:14px;padding:11px;background:var(--accent);color:#07111f;border:none;border-radius:12px;font:inherit;font-weight:800;font-size:14px;cursor:pointer}
+    .cfg-sep{height:1px;background:var(--line);margin:16px 0}
+    .cfg-note{font-size:11px;color:var(--muted);line-height:1.6;text-align:center}
+
+    /* Roles legend */
+    .role-row{display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(255,255,255,.04);border-radius:10px;margin-bottom:6px;font-size:12px}
+    .role-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+
+    /* Responsive mobile */
+    @media(max-width:840px){
+      #board{grid-template-columns:repeat(4,260px);overflow-x:auto}
+      #tbTitle{display:none}
+      .stat-chip{display:none}
+    }
+    @media(max-width:480px){
+      #topbar{gap:6px;padding:0 10px}
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Top bar ──────────────────────────────────────────────────────────────── -->
+<div id="topbar">
+  <span id="tbLogo">🍺</span>
+  <span id="tbTitle">CrowdLuma — Gestion commandes</span>
+  <div class="tb-sep"></div>
+  <select id="filterSelect" onchange="applyFilter()">
+    <option value="">🏟 Tout le stade</option>
+  </select>
+  <div class="tb-sep"></div>
+  <div class="stat-chip sc-warn" id="statPending">📥 0</div>
+  <div class="stat-chip sc-blue" id="statPreparing">🍺 0</div>
+  <div class="stat-chip sc-purple" id="statDelivering">🏃 0</div>
+  <div class="stat-chip sc-green" id="statPaid">✅ 0</div>
+  <div id="tbRight">
+    <button class="tb-btn" id="soundBtn" onclick="toggleSound()" title="Son nouvelle commande">🔕</button>
+    <a href="stadium-admin.html" class="tb-btn" style="text-decoration:none;font-size:12px">⚙ Admin</a>
+    <button class="tb-btn" onclick="loadOrders()" title="Rafraîchir">↺</button>
+    <button class="tb-btn" onclick="openCfg()">🔌 Connexion</button>
+    <span class="sb-dot" id="sbDot" title="Non connecté à Supabase" onclick="openCfg()"></span>
+  </div>
+</div>
+
+<!-- ── Kanban board ─────────────────────────────────────────────────────────── -->
+<div id="board">
+
+  <!-- 1. Reçues -->
+  <div class="col col-pending">
+    <div class="col-head">
+      <span class="col-icon">📥</span>
+      <span class="col-title">Reçues</span>
+      <span class="col-count" id="cnt-pending">0</span>
+    </div>
+    <div class="col-cards" id="cards-pending">
+      <div class="col-empty">En attente de connexion…</div>
+    </div>
+  </div>
+
+  <!-- 2. Préparation -->
+  <div class="col col-preparing">
+    <div class="col-head">
+      <span class="col-icon">🍺</span>
+      <span class="col-title">Préparation</span>
+      <span class="col-count" id="cnt-preparing">0</span>
+    </div>
+    <div class="col-cards" id="cards-preparing">
+      <div class="col-empty">Aucune commande<br>en préparation</div>
+    </div>
+  </div>
+
+  <!-- 3. Livraison -->
+  <div class="col col-delivering">
+    <div class="col-head">
+      <span class="col-icon">🏃</span>
+      <span class="col-title">Livraison</span>
+      <span class="col-count" id="cnt-delivering">0</span>
+    </div>
+    <div class="col-cards" id="cards-delivering">
+      <div class="col-empty">Aucune livraison<br>en cours</div>
+    </div>
+  </div>
+
+  <!-- 4. Encaissées -->
+  <div class="col col-paid">
+    <div class="col-head">
+      <span class="col-icon">✅</span>
+      <span class="col-title">Encaissées</span>
+      <span class="col-count" id="cnt-paid">0</span>
+      <span class="col-revenue" id="revenue"></span>
+    </div>
+    <div class="col-cards" id="cards-paid">
+      <div class="col-empty">Les commandes encaissées<br>apparaissent ici</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Config / connexion modal ─────────────────────────────────────────────── -->
+<div id="cfgModal" onclick="if(event.target===this)closeCfg()">
+  <div id="cfgBox">
+    <div class="cfg-title">🔌 Connexion Supabase</div>
+    <div class="cfg-sub">
+      Plusieurs agents (bar, livreur, caisse) peuvent se connecter simultanément sur n'importe quel appareil. Toutes les mises à jour sont synchronisées en temps réel.
+    </div>
+
+    <!-- Roles legend -->
+    <div style="margin-bottom:14px">
+      <div class="role-row"><span class="role-dot" style="background:var(--c-pending)"></span> <strong>Réception</strong> — voit les nouvelles commandes, clique « Préparer »</div>
+      <div class="role-row"><span class="role-dot" style="background:var(--c-preparing)"></span> <strong>Bar / Cuisine</strong> — prépare et clique « En livraison »</div>
+      <div class="role-row"><span class="role-dot" style="background:var(--c-delivering)"></span> <strong>Livreur</strong> — livre au siège, clique « Encaisser »</div>
+      <div class="role-row"><span class="role-dot" style="background:var(--c-paid)"></span> <strong>Caisse</strong> — voit les commandes encaissées et le chiffre du jour</div>
+    </div>
+
+    <div class="cfg-sep"></div>
+
+    <span class="cfg-label">URL Supabase</span>
+    <input id="cfgUrl" class="cfg-input" placeholder="https://xxxx.supabase.co" autocomplete="off">
+
+    <span class="cfg-label">Clé publique anon</span>
+    <input id="cfgKey" class="cfg-input" type="password" placeholder="eyJhb…">
+
+    <span class="cfg-label">ID Stade (même valeur que dans stadium-admin)</span>
+    <input id="cfgStadiumId" class="cfg-input" value="default">
+
+    <button class="cfg-btn" onclick="connectSB()">Connecter</button>
+    <div id="cfgStatus" style="font-size:12px;color:var(--muted);margin-top:10px;min-height:16px;text-align:center"></div>
+
+    <div class="cfg-sep"></div>
+    <div class="cfg-note">
+      Les identifiants sont mémorisés sur cet appareil.<br>
+      Chaque membre du personnel ouvre cette page sur son propre téléphone / tablette.
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+// ── Config ────────────────────────────────────────────────────────────────────
+const LS = {
+  url:       () => localStorage.getItem('ops_url') || '',
+  key:       () => localStorage.getItem('ops_key') || '',
+  stadiumId: () => localStorage.getItem('ops_stadiumId') || 'default',
+  save: (url, key, sid) => {
+    localStorage.setItem('ops_url', url);
+    localStorage.setItem('ops_key', key);
+    localStorage.setItem('ops_stadiumId', sid);
+  },
+};
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let sb = null;
+let rtChannel = null;
+let orders = [];
+let filterValue = '';
+let soundOn = false;
+const $ = id => document.getElementById(id);
+
+// Status machine
+const STATUS_CFG = {
+  pending:    { next: 'preparing',  btnLabel: 'Préparer →',     emoji: '📥' },
+  preparing:  { next: 'delivering', btnLabel: 'En livraison →', emoji: '🍺' },
+  delivering: { next: 'paid',       btnLabel: 'Encaisser ✓',    emoji: '🏃' },
+  paid:       { next: null,         btnLabel: null,              emoji: '✅' },
+};
+
+const ICONS = {
+  beer:'🍺', bière:'🍺', boisson:'🍺', snack:'🌭', hotdog:'🌭', frites:'🍟',
+  menu:'🥤', eau:'💧', water:'💧', soda:'🥤', café:'☕', coffee:'☕',
+  wine:'🍷', vin:'🍷', info:'📋', programme:'📋',
+};
+function itemIcon(id, label) {
+  const k = (id + ' ' + (label || '')).toLowerCase();
+  for (const [kw, ic] of Object.entries(ICONS)) if (k.includes(kw)) return ic;
+  return '🛍';
+}
+
+// ── Time ──────────────────────────────────────────────────────────────────────
+function timeAgo(iso) {
+  const s = (Date.now() - new Date(iso)) / 1000;
+  if (s < 60)   return "à l'instant";
+  if (s < 3600) return `il y a ${Math.floor(s / 60)} min`;
+  return `il y a ${Math.floor(s / 3600)}h${Math.floor((s % 3600) / 60)}`;
+}
+function isUrgent(iso) { return (Date.now() - new Date(iso)) > 5 * 60 * 1000; }
+
+// ── Sound ─────────────────────────────────────────────────────────────────────
+function toggleSound() {
+  soundOn = !soundOn;
+  $('soundBtn').textContent = soundOn ? '🔔' : '🔕';
+  $('soundBtn').classList.toggle('active', soundOn);
+}
+function beep(freq = 880, dur = 0.35) {
+  if (!soundOn) return;
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    osc.frequency.setValueAtTime(freq * 0.75, ctx.currentTime + 0.1);
+    g.gain.setValueAtTime(0.28, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    osc.start(); osc.stop(ctx.currentTime + dur);
+  } catch(e) {}
+}
+
+// ── Filter ────────────────────────────────────────────────────────────────────
+function applyFilter() { filterValue = $('filterSelect').value; renderBoard(); }
+
+function filtered() {
+  if (!filterValue) return orders;
+  const [type, val] = filterValue.split(':');
+  if (type === 'stand') return orders.filter(o => o.stand === val);
+  if (type === 'block') return orders.filter(o => o.block_id === val);
+  return orders;
+}
+
+function rebuildFilter() {
+  const sel = $('filterSelect');
+  const cur = sel.value;
+  const stands = [...new Set(orders.map(o => o.stand).filter(Boolean))];
+  const blocks  = [...new Set(orders.filter(o => o.block_id).map(o => `${o.stand||''}||${o.block_id}`))];
+  sel.innerHTML = '<option value="">🏟 Tout le stade</option>';
+  stands.forEach(s => { sel.innerHTML += `<option value="stand:${s}">▶ ${s}</option>`; });
+  blocks.forEach(b => {
+    const [stand, block] = b.split('||');
+    sel.innerHTML += `<option value="block:${block}">&nbsp;&nbsp;Bloc ${block}${stand ? ' · ' + stand : ''}</option>`;
+  });
+  sel.value = cur;
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderBoard() {
+  const fo = filtered();
+  const byCols = {
+    pending:    fo.filter(o => o.status === 'pending'),
+    preparing:  fo.filter(o => o.status === 'preparing'),
+    delivering: fo.filter(o => o.status === 'delivering'),
+    paid:       fo.filter(o => o.status === 'paid'),
+  };
+
+  // Stats bar
+  $('statPending').textContent   = `📥 ${byCols.pending.length}`;
+  $('statPreparing').textContent = `🍺 ${byCols.preparing.length}`;
+  $('statDelivering').textContent= `🏃 ${byCols.delivering.length}`;
+  $('statPaid').textContent      = `✅ ${byCols.paid.length}`;
+
+  // Revenue in paid column header
+  const rev = byCols.paid.reduce((s, o) => s + (parseFloat(o.price) || 0), 0);
+  $('revenue').textContent = rev > 0 ? `· ${rev.toFixed(2)} €` : '';
+
+  for (const [status, list] of Object.entries(byCols)) {
+    $(`cnt-${status}`).textContent = list.length;
+    const el = $(`cards-${status}`);
+
+    if (!list.length) {
+      const msgs = {
+        pending: 'Aucune commande en attente',
+        preparing: 'Aucune commande\nen préparation',
+        delivering: 'Aucune livraison\nen cours',
+        paid: 'Les commandes encaissées\napparaissent ici',
+      };
+      el.innerHTML = `<div class="col-empty">${msgs[status]}</div>`;
+      continue;
+    }
+
+    // Sort: paid → most recent first; others → oldest first (FIFO)
+    const sorted = status === 'paid'
+      ? [...list].sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 80)
+      : [...list].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+
+    el.innerHTML = sorted.map(o => card(o, status)).join('');
+  }
+}
+
+function card(o, status) {
+  const cfg = STATUS_CFG[status];
+  const urg = status !== 'paid' && isUrgent(o.created_at);
+  const loc = [o.stand, o.block_id ? `Bloc ${o.block_id}` : ''].filter(Boolean).join(' · ');
+
+  const cancelBtn = (status === 'pending' || status === 'preparing')
+    ? `<button class="card-cancel" onclick="cancelOrder('${o.id}')" title="Annuler la commande">×</button>` : '';
+
+  const actionBtn = cfg.next
+    ? `<button class="card-action" onclick="advance('${o.id}','${cfg.next}')">${cfg.btnLabel}</button>` : '';
+
+  return `<div class="order-card${urg ? ' urgent' : ''}" id="oc-${o.id}">
+    ${cancelBtn}
+    <div class="card-top">
+      <span class="card-icon">${itemIcon(o.item_id, o.item_label)}</span>
+      <div class="card-info">
+        <div class="card-name">${o.item_label || o.item_id || '?'}</div>
+        ${loc ? `<div class="card-loc">${loc}</div>` : ''}
+      </div>
+      ${o.price ? `<span class="card-price">${parseFloat(o.price).toFixed(2)} €</span>` : ''}
+    </div>
+    <div class="card-seat">${o.seat_id || '—'}</div>
+    <div class="card-foot">
+      <span class="card-time${urg ? ' urgent' : ''}">${urg ? '⚠ ' : ''}${timeAgo(o.created_at)}</span>
+      ${actionBtn}
+    </div>
+  </div>`;
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+async function advance(id, nextStatus) {
+  // Optimistic
+  const o = orders.find(x => x.id === id);
+  if (o) o.status = nextStatus;
+  renderBoard();
+  // Persist
+  const { error } = await sb.from('orders').update({ status: nextStatus }).eq('id', id);
+  if (error) { alert('Erreur : ' + error.message); loadOrders(); }
+}
+
+async function cancelOrder(id) {
+  if (!confirm('Annuler et supprimer cette commande ?')) return;
+  orders = orders.filter(o => o.id !== id);
+  renderBoard();
+  await sb.from('orders').update({ status: 'cancelled' }).eq('id', id).catch(() => loadOrders());
+}
+
+// ── Load ──────────────────────────────────────────────────────────────────────
+async function loadOrders() {
+  if (!sb) return;
+  const since = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(); // last 4h
+  const { data } = await sb.from('orders')
+    .select('id,stadium_id,seat_id,row,col,item_id,item_label,price,status,stand,zone_id,block_id,created_at,participant_id')
+    .eq('stadium_id', LS.stadiumId())
+    .not('status', 'eq', 'cancelled')
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(300)
+    .catch(() => ({ data: null }));
+  if (!data) return;
+  const prev = new Set(orders.map(o => o.id));
+  orders = data;
+  const newOnes = data.filter(o => o.status === 'pending' && !prev.has(o.id));
+  if (newOnes.length && prev.size > 0) {
+    beep();
+    setTimeout(() => newOnes.forEach(o => {
+      const el = $(`oc-${o.id}`);
+      if (el) el.classList.add('new-flash');
+    }), 120);
+  }
+  rebuildFilter();
+  renderBoard();
+}
+
+// ── Realtime ──────────────────────────────────────────────────────────────────
+function setupRealtime() {
+  if (rtChannel) sb.removeChannel(rtChannel);
+  rtChannel = sb.channel('crowdluma-ops-' + LS.stadiumId())
+    .on('postgres_changes', {
+      event: '*', schema: 'public', table: 'orders',
+      filter: `stadium_id=eq.${LS.stadiumId()}`,
+    }, ({ eventType, new: nr, old: or }) => {
+      if (eventType === 'INSERT') {
+        if (nr.status !== 'cancelled') { orders.unshift(nr); beep(); }
+        setTimeout(() => { const el=$(`oc-${nr.id}`); if(el) el.classList.add('new-flash'); }, 150);
+      } else if (eventType === 'UPDATE') {
+        const i = orders.findIndex(o => o.id === nr.id);
+        if (nr.status === 'cancelled') { orders = orders.filter(o => o.id !== nr.id); }
+        else if (i >= 0) orders[i] = nr;
+        else orders.unshift(nr);
+      } else if (eventType === 'DELETE') {
+        orders = orders.filter(o => o.id !== or.id);
+      }
+      rebuildFilter();
+      renderBoard();
+    })
+    .subscribe(st => {
+      const ok = st === 'SUBSCRIBED';
+      $('sbDot').className = 'sb-dot' + (ok ? ' ok' : '');
+      $('sbDot').title = ok ? '● Connecté — temps réel actif' : `Statut : ${st}`;
+    });
+}
+
+// ── Config modal ──────────────────────────────────────────────────────────────
+function openCfg() {
+  $('cfgUrl').value = LS.url();
+  $('cfgKey').value = LS.key();
+  $('cfgStadiumId').value = LS.stadiumId();
+  $('cfgModal').classList.add('open');
+}
+function closeCfg() { $('cfgModal').classList.remove('open'); }
+
+async function connectSB() {
+  const url = $('cfgUrl').value.trim();
+  const key = $('cfgKey').value.trim();
+  const sid = $('cfgStadiumId').value.trim() || 'default';
+  if (!url || !key) { $('cfgStatus').textContent = '⚠ URL et clé requises.'; return; }
+  $('cfgStatus').textContent = 'Connexion en cours…';
+  try {
+    sb = supabase.createClient(url, key);
+    LS.save(url, key, sid);
+    setupRealtime();
+    await loadOrders();
+    $('cfgStatus').textContent = '✓ Connecté !';
+    setTimeout(closeCfg, 700);
+  } catch(e) { $('cfgStatus').textContent = '⚠ Erreur : ' + e.message; }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+(async () => {
+  const url = LS.url(), key = LS.key();
+  if (url && key) {
+    sb = supabase.createClient(url, key);
+    setupRealtime();
+    await loadOrders();
+  } else {
+    openCfg();
+  }
+  setInterval(renderBoard, 60_000);   // refresh time labels every minute
+  setInterval(loadOrders, 120_000);  // failsafe full reload every 2 min
+})();
+</script>
+</body>
+</html>

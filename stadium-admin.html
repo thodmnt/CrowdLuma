@@ -1,0 +1,1349 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Console Stade — CrowdLuma</title>
+  <style>
+    :root{--bg:#07111f;--card:#111c2e;--card2:#0d1728;--text:#eef5ff;--muted:#9fb0c7;--accent:#7dd3fc;--ok:#34d399;--warn:#fbbf24;--bad:#fb7185;--line:rgba(255,255,255,.1)}
+    *{box-sizing:border-box;margin:0}
+    body{background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif;display:grid;grid-template-rows:52px 1fr;height:100dvh;overflow:hidden}
+    input,select,button{font:inherit;color:var(--text)}
+    input,select{background:#081424;border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:6px 10px}
+    button{border:none;border-radius:8px;padding:7px 13px;font-weight:700;cursor:pointer;background:var(--accent);color:#07111f;white-space:nowrap}
+    button.secondary{background:rgba(255,255,255,.08);color:var(--text);border:1px solid var(--line)}
+    button.danger{background:var(--bad);color:#1b0b10}
+    button.sm{padding:4px 9px;font-size:12px}
+    button:hover{filter:brightness(1.12)}
+    /* ── Layout ── */
+    #topbar{display:flex;align-items:center;justify-content:space-between;padding:0 14px;border-bottom:1px solid var(--line);gap:8px;overflow:hidden}
+    #stadiumName{font-size:17px;font-weight:700;background:none;border:none;color:var(--text);width:200px;padding:4px 6px;border-radius:6px}
+    #stadiumName:focus{background:rgba(255,255,255,.06);outline:none}
+    .layout{display:grid;grid-template-columns:230px 1fr 360px;height:100%;overflow:hidden}
+    aside{border-right:1px solid var(--line);overflow-y:auto;display:flex;flex-direction:column;padding:10px}
+    #centerPanel{overflow:auto;background:var(--card2);display:flex;flex-direction:column}
+    #editorPanel{border-left:1px solid var(--line);overflow-y:auto;padding:14px}
+    /* ── Tree ── */
+    .zone-row{margin-bottom:4px}
+    .zone-hd{display:flex;align-items:center;gap:6px;padding:7px 8px;border-radius:10px;cursor:pointer;background:rgba(255,255,255,.05);border:1px solid transparent}
+    .zone-hd:hover,.zone-hd.active{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.15)}
+    .zone-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+    .zone-label{flex:1;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .zone-meta{font-size:10px;color:var(--muted)}
+    .block-list{padding-left:16px;margin-top:3px;display:flex;flex-direction:column;gap:2px}
+    .block-row{display:flex;align-items:center;gap:5px;padding:5px 8px;border-radius:8px;cursor:pointer;font-size:12px}
+    .block-row:hover,.block-row.active{background:rgba(255,255,255,.08)}
+    .block-color{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+    .block-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    /* ── Overview canvas ── */
+    #overview{display:block;width:100%;cursor:crosshair}
+    /* ── Editor ── */
+    .ed-section{margin-bottom:18px}
+    .ed-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+    .ed-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;flex-wrap:wrap}
+    .ed-label{font-size:12px;color:var(--muted);width:80px;flex-shrink:0}
+    .ed-row input,.ed-row select{flex:1;min-width:0}
+    .palette-strip{display:flex;gap:5px;flex-wrap:wrap}
+    .p-swatch{width:28px;height:28px;border-radius:7px;border:2px solid transparent;cursor:pointer}
+    .p-swatch.active{border-color:white;box-shadow:0 0 0 1px white}
+    /* ── Grid editor ── */
+    #gridWrap{overflow:auto;max-height:50vh;background:#050b14;border-radius:10px;border:1px solid var(--line);padding:6px;margin-top:8px}
+    #gridEl{display:grid;gap:1px}
+    .g-cell{border-radius:1px;border:1px solid rgba(0,0,0,.25);cursor:pointer}
+    .g-cell:hover{outline:2px solid white;z-index:2;position:relative}
+    /* ── Misc ── */
+    .tag{display:inline-flex;align-items:center;border-radius:20px;padding:2px 8px;font-size:11px;font-weight:700}
+    .tag.blue{background:rgba(125,211,252,.15);color:var(--accent)}
+    .tag.green{background:rgba(52,211,153,.15);color:var(--ok)}
+    .sep{height:1px;background:var(--line);margin:12px 0}
+    @media(max-width:900px){.layout{grid-template-columns:1fr}}
+    /* ── Live panel ── */
+    #livePanel{position:fixed;top:0;right:0;bottom:0;width:360px;background:var(--card);border-left:1px solid var(--line);z-index:200;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);box-shadow:-20px 0 60px rgba(0,0,0,.4)}
+    #livePanel.open{transform:translateX(0)}
+    #livePanelHead{display:flex;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line);gap:10px;flex-shrink:0}
+    .live-tabs{display:flex;gap:4px;padding:10px 12px 0;flex-shrink:0}
+    .live-tab{flex:1;padding:7px 4px;font:inherit;font-size:12px;font-weight:700;border:none;border-radius:8px 8px 0 0;cursor:pointer;background:rgba(255,255,255,.06);color:var(--muted);border-bottom:2px solid transparent}
+    .live-tab.active{background:rgba(255,255,255,.1);color:var(--text);border-bottom-color:var(--accent)}
+    .live-body{flex:1;overflow-y:auto;padding:14px}
+    .live-label{font-size:12px;color:var(--muted);margin:10px 0 5px;display:block}
+    .live-input{width:100%;padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:#081424;color:var(--text);font:inherit;font-size:13px;resize:vertical}
+    .live-btn{width:100%;margin-top:8px;padding:10px;border-radius:12px;font:inherit;font-weight:800;font-size:13px;cursor:pointer;border:none}
+    .live-btn.primary{background:var(--accent);color:#07111f}
+    .live-btn.danger{background:var(--bad);color:#1b0b10}
+    .live-btn.sec{background:rgba(255,255,255,.08);color:var(--text);border:1px solid var(--line)}
+    .order-row{padding:10px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid var(--line);margin-bottom:6px;font-size:12px}
+    .order-row b{font-size:13px;display:block;margin-bottom:2px}
+    .sb-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+    /* Scrim */
+    #liveScrim{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:199;display:none}
+    #liveScrim.open{display:block}
+    /* vote result bars */
+    .vr-bar{height:6px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden;margin-top:3px}
+    .vr-fill{height:100%;border-radius:3px;transition:width .6s ease}
+  </style>
+</head>
+<body>
+
+<!-- ── Écran de connexion Admin ─────────────────────────────────────────────── -->
+<div id="authScreen" style="position:fixed;inset:0;z-index:1000;background:var(--bg);display:none;place-items:center">
+  <div style="background:var(--card);border:1px solid var(--line);border-radius:20px;padding:32px;width:min(90%,380px)">
+    <div style="text-align:center;margin-bottom:24px">
+      <div style="font-size:40px">🏟</div>
+      <div style="font-size:22px;font-weight:800;margin:8px 0 4px;letter-spacing:-.02em">CrowdLuma Admin</div>
+      <div style="font-size:13px;color:var(--muted)">Connectez-vous pour accéder à la console</div>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Email</div>
+    <input id="authEmail" type="email" placeholder="admin@monclub.com" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:#081424;color:var(--text);font:inherit;font-size:13px;margin-bottom:10px">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Mot de passe</div>
+    <input id="authPwd" type="password" placeholder="••••••••" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:#081424;color:var(--text);font:inherit;font-size:13px;margin-bottom:16px" onkeydown="if(event.key==='Enter')doLogin()">
+    <button onclick="doLogin()" style="width:100%;padding:12px;background:var(--accent);color:#07111f;border:none;border-radius:12px;font:inherit;font-weight:800;font-size:14px;cursor:pointer">Se connecter</button>
+    <div id="authError" style="font-size:12px;color:var(--bad);margin-top:10px;text-align:center;min-height:18px"></div>
+    <div style="height:1px;background:var(--line);margin:16px 0"></div>
+    <div style="font-size:11px;color:var(--muted);text-align:center;line-height:1.6">
+      Pas encore de Supabase ? <br>
+      <a href="#" onclick="skipAuth(event)" style="color:var(--accent);text-decoration:none">Continuer sans authentification →</a>
+    </div>
+  </div>
+</div>
+
+<!-- ── Top bar ─────────────────────────────────────────────────────────────── -->
+<div id="topbar">
+  <div style="display:flex;align-items:center;gap:10px;overflow:hidden">
+    <span style="font-size:20px;flex-shrink:0">🏟</span>
+    <input id="stadiumName" value="Mon Stade" oninput="state.name=this.value">
+    <span id="statsChip" class="tag blue"></span>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;overflow:hidden;flex-shrink:0">
+    <button class="sm secondary" id="btnPrev">‹</button>
+    <span id="frameLabel" style="font-size:12px;min-width:72px;text-align:center;color:var(--muted)"></span>
+    <button class="sm secondary" id="btnNext">›</button>
+    <button class="sm secondary" id="btnAddFrame">+ Frame</button>
+    <input id="frameSec" type="number" min="1" value="4" style="width:46px" title="Secondes par frame">
+    <button id="btnExportJson">Export JSON</button>
+    <button id="btnExportCsv" class="secondary">Export CSV</button>
+    <button id="btnLive" onclick="toggleLivePanel()" style="background:rgba(251,99,99,.18);color:#fb6363;border:1px solid rgba(251,99,99,.35);border-radius:8px;padding:6px 13px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">🔴 Live</button>
+    <button id="btnLogout" onclick="adminLogout()" style="display:none;background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:5px 11px;font:inherit;font-size:11px;cursor:pointer;flex-shrink:0" title="">⎋ Quitter</button>
+    <a href="orders-ops.html" style="font-size:11px;color:var(--warn);text-decoration:none;margin-left:4px;flex-shrink:0;white-space:nowrap" title="Suivi logistique des commandes (multi-utilisateurs)">📦 Ops ↗</a>
+    <a href="admin.html" style="font-size:11px;color:var(--muted);text-decoration:none;margin-left:4px;flex-shrink:0">Tribune seule ↗</a>
+  </div>
+</div>
+
+<!-- ── Main layout ──────────────────────────────────────────────────────────── -->
+<div class="layout">
+
+  <!-- Left: tree -->
+  <aside>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Structure</div>
+    <div id="treeContent" style="flex:1"></div>
+    <button id="btnAddZone" style="width:100%;margin-top:10px" class="secondary">+ Ajouter une zone</button>
+  </aside>
+
+  <!-- Center: canvas overview -->
+  <section id="centerPanel">
+    <div style="padding:10px 12px 4px;font-size:11px;color:var(--muted)">
+      Vue d'ensemble — cliquez un bloc pour l'éditer
+    </div>
+    <canvas id="overview"></canvas>
+  </section>
+
+  <!-- Right: context editor -->
+  <section id="editorPanel">
+    <div id="editor"><p style="color:var(--muted);font-size:13px;margin-top:20px;text-align:center">Sélectionnez une zone ou un bloc</p></div>
+  </section>
+
+</div>
+
+<!-- Hidden canvas for image processing -->
+<canvas id="offscreen" style="display:none"></canvas>
+
+<!-- ── Live panel ───────────────────────────────────────────────────────────── -->
+<div id="liveScrim" onclick="toggleLivePanel()"></div>
+<div id="livePanel">
+  <div id="livePanelHead">
+    <span style="font-size:16px">🔴</span>
+    <span style="font-weight:700;font-size:15px;flex:1">Contrôles Live</span>
+    <span id="sbStatusDot" class="sb-dot" style="background:var(--bad)" title="Supabase non connecté"></span>
+    <button onclick="toggleLivePanel()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0 4px">×</button>
+  </div>
+  <div class="live-tabs">
+    <button class="live-tab active" onclick="setLiveTab('notif')">🔔 Notif</button>
+    <button class="live-tab" onclick="setLiveTab('vote')">📊 Vote</button>
+    <button class="live-tab" onclick="setLiveTab('loterie')">🎰 Tirage</button>
+    <button class="live-tab" onclick="setLiveTab('flash')">🔦 Flash</button>
+    <button class="live-tab" onclick="setLiveTab('orders')">📦 Cmdes</button>
+    <button class="live-tab" onclick="setLiveTab('shop')">🛒 Shop</button>
+    <button class="live-tab" onclick="setLiveTab('config')">⚙ Config</button>
+  </div>
+  <!-- ── Go Live — synchronisation show (MVP2) ── -->
+  <div style="padding:10px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;background:rgba(52,211,153,.04);flex-shrink:0">
+    <span id="liveShowStatus" style="font-size:11px;color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Show : en attente</span>
+    <button onclick="adminGoLive()" style="background:var(--ok);color:#071b0f;border:none;border-radius:8px;padding:5px 12px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">▶ Go Live</button>
+    <button onclick="adminPauseShow()" style="background:rgba(255,255,255,.08);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:5px 10px;font:inherit;font-size:12px;cursor:pointer;flex-shrink:0" title="Pause">❚❚</button>
+  </div>
+
+  <div class="live-body">
+
+    <!-- Tab: Notification -->
+    <div id="liveTabNotif">
+      <span class="live-label">Cible</span>
+      <select id="notifTarget" class="live-input" style="padding:8px 10px"></select>
+      <span class="live-label">Message</span>
+      <textarea id="notifMsg" class="live-input" rows="3" placeholder="Ex : Merci de rejoindre votre siège…"></textarea>
+      <button class="live-btn primary" onclick="sendNotif()">Envoyer la notification 🔔</button>
+      <div id="notifFeedback" style="font-size:12px;color:var(--ok);margin-top:8px;min-height:18px"></div>
+    </div>
+
+    <!-- Tab: Vote -->
+    <div id="liveTabVote" style="display:none">
+      <div id="liveVoteCreate">
+        <span class="live-label">Question</span>
+        <input id="voteQ" class="live-input" placeholder="Ex : Homme du match ?">
+        <span class="live-label">Option A</span>
+        <input id="voteOpt0" class="live-input" placeholder="Option A">
+        <span class="live-label">Option B</span>
+        <input id="voteOpt1" class="live-input" placeholder="Option B">
+        <span class="live-label">Option C (optionnel)</span>
+        <input id="voteOpt2" class="live-input" placeholder="">
+        <button class="live-btn primary" onclick="launchVote()">Lancer le vote 📊</button>
+      </div>
+      <div id="liveVoteActive" style="display:none">
+        <div id="voteActiveQ" style="font-size:15px;font-weight:700;margin-bottom:12px;color:var(--ok)"></div>
+        <div id="voteResults" style="margin-bottom:12px"></div>
+        <button class="live-btn sec" onclick="refreshVoteResults()" style="margin-bottom:6px">Actualiser les résultats</button>
+        <button class="live-btn danger" onclick="endVote()">Terminer le vote ✕</button>
+      </div>
+    </div>
+
+    <!-- Tab: Loterie -->
+    <div id="liveTabLoterie" style="display:none">
+      <span class="live-label">🏆 Prix à gagner</span>
+      <input id="lotteryPrize" class="live-input" placeholder="Ex : Maillot dédicacé, Places VIP…">
+      <span class="live-label">Cibler un bloc (optionnel)</span>
+      <input id="lotteryBlock" class="live-input" placeholder="Laisser vide = tout le stade">
+      <span class="live-label">Suspense (secondes)</span>
+      <input id="lotterySuspense" class="live-input" type="number" value="5" min="2" max="15">
+      <button class="live-btn primary" onclick="launchLottery()" style="background:linear-gradient(135deg,#f59e0b,#ef4444)">🎰 Lancer le tirage au sort !</button>
+      <div id="lotteryFeedback" style="font-size:12px;color:var(--ok);margin-top:8px;min-height:18px"></div>
+      <div id="lotteryWinnerDisplay" style="display:none;margin-top:12px;padding:14px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:12px;text-align:center">
+        <div style="font-size:22px;margin-bottom:4px">🏆</div>
+        <div id="lotteryWinnerSeat" style="font-size:18px;font-weight:900;color:#fbbf24"></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">Siège gagnant</div>
+      </div>
+    </div>
+
+    <!-- Tab: Flash -->
+    <div id="liveTabFlash" style="display:none">
+      <p style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px">
+        Active la lampe de poche LED des téléphones participants.<br>
+        <strong style="color:var(--warn)">⚠ Nécessite l'accord caméra du spectateur.</strong>
+      </p>
+      <span class="live-label">Mode</span>
+      <select id="torchPattern" class="live-input">
+        <option value="solid">Continu (feu de bengale)</option>
+        <option value="slow">Stroboscope lent (0.5Hz)</option>
+        <option value="fast">Stroboscope rapide (3Hz)</option>
+        <option value="off">Éteindre</option>
+      </select>
+      <span class="live-label">Cible</span>
+      <select id="torchTarget" class="live-input">
+        <option value="all">🏟 Tout le stade</option>
+      </select>
+      <button class="live-btn primary" onclick="broadcastTorch()" style="background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#1a1000">🔦 Envoyer la commande flash</button>
+      <button class="live-btn sec" onclick="broadcastTorchOff()" style="margin-top:4px">⬛ Éteindre toutes les lampes</button>
+      <div id="torchFeedback" style="font-size:12px;color:var(--ok);margin-top:8px;min-height:18px"></div>
+    </div>
+
+    <!-- Tab: Commandes -->
+    <div id="liveTabOrders" style="display:none">
+      <div id="ordersList" style="margin-bottom:10px"></div>
+      <button class="live-btn sec" onclick="loadOrders()">Actualiser</button>
+    </div>
+
+    <!-- Tab: Shop -->
+    <div id="liveTabShop" style="display:none">
+      <div id="shopItemsList" style="margin-bottom:10px"></div>
+      <div style="border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px">
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Ajouter un article</div>
+        <div style="display:grid;grid-template-columns:50px 1fr;gap:6px;margin-bottom:6px">
+          <input id="newItemIcon" class="live-input" placeholder="🍕" style="font-size:18px;text-align:center">
+          <input id="newItemLabel" class="live-input" placeholder="Nom de l'article">
+        </div>
+        <input id="newItemDesc" class="live-input" placeholder="Description (ex: livré à votre siège)" style="margin-bottom:6px">
+        <div style="display:grid;grid-template-columns:1fr 80px;gap:6px">
+          <input id="newItemPrice" class="live-input" placeholder="Prix (ex: 4.50)">
+          <button onclick="addShopItem()" class="live-btn primary" style="margin:0;padding:8px 4px">+ Ajouter</button>
+        </div>
+      </div>
+      <button class="live-btn primary" onclick="broadcastShop()">Diffuser le shop aux participants →</button>
+      <div id="shopFeedback" style="font-size:12px;color:var(--ok);margin-top:6px;min-height:18px"></div>
+    </div>
+
+    <!-- Tab: Config Supabase -->
+    <div id="liveTabConfig" style="display:none">
+      <p style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px">
+        Créez un projet gratuit sur <strong style="color:var(--text)">supabase.com</strong>, puis copiez l'URL et la clé publique anon depuis <em>Settings › API</em>.
+      </p>
+      <span class="live-label">URL Supabase</span>
+      <input id="sbUrl" class="live-input" placeholder="https://xxxx.supabase.co">
+      <span class="live-label">Clé publique anon</span>
+      <input id="sbKey" class="live-input" placeholder="eyJhb…" type="password">
+      <span class="live-label">ID Stade (pour les channels)</span>
+      <input id="sbStadiumId" class="live-input" value="default" placeholder="default">
+      <button class="live-btn primary" onclick="initSB()" style="margin-top:12px">Connecter à Supabase</button>
+      <div id="sbStatusMsg" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
+      <div class="sep"></div>
+      <p style="font-size:11px;color:var(--muted);line-height:1.6">
+        Tables requises : <code>orders</code>, <code>votes</code>, <code>vote_responses</code>.<br>
+        Script SQL disponible dans <code>supabase/schema.sql</code>.
+      </p>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+// ── Palette ──────────────────────────────────────────────────────────────────
+const PALETTE = [
+  {name:'noir',  hex:'#050505',instruction:'Baisser / noir'},
+  {name:'blanc', hex:'#ffffff',instruction:'Afficher blanc'},
+  {name:'rouge', hex:'#e11d48',instruction:'Afficher rouge'},
+  {name:'bleu',  hex:'#2563eb',instruction:'Afficher bleu'},
+  {name:'jaune', hex:'#facc15',instruction:'Afficher jaune'},
+  {name:'vert',  hex:'#22c55e',instruction:'Afficher vert'},
+];
+let selColor = PALETTE[3];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let _uid = 0;
+const uid = () => ++_uid;
+
+let state = {
+  name: 'Mon Stade',
+  zones: [],    // [{ id, name, color, blocks: [{id, name, rows, cols}] }]
+  frameCount: 1,
+  frameSec: 4,
+  mode: 'hybrid',
+  menuItems: [],
+};
+// grids[zoneId][blockId][frameIdx] = [[hex, ...], ...]
+let grids = {};
+let currentFrame = 0;
+// selection
+let sel = { type: 'stadium', zoneId: null, blockId: null };
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+function getZone(id)        { return state.zones.find(z => z.id === id); }
+function getBlock(zid, bid) { return getZone(zid)?.blocks.find(b => b.id === bid); }
+
+function ensureGrid(zid, bid) {
+  if (!grids[zid]) grids[zid] = {};
+  if (!grids[zid][bid]) grids[zid][bid] = [];
+}
+function getGrid(zid, bid, fi) {
+  ensureGrid(zid, bid);
+  if (!grids[zid][bid][fi]) {
+    const b = getBlock(zid, bid);
+    grids[zid][bid][fi] = Array.from({length:b.rows}, () =>
+      Array.from({length:b.cols}, () => PALETTE[0].hex));
+  }
+  return grids[zid][bid][fi];
+}
+function dominantColor(zid, bid) {
+  const frames = grids[zid]?.[bid];
+  if (!frames?.length) return null;
+  const g = frames[currentFrame] || frames[0];
+  if (!g) return null;
+  const counts = {};
+  g.flat().forEach(h => counts[h] = (counts[h]||0)+1);
+  return Object.entries(counts).sort((a,b)=>b[1]-a[1])[0]?.[0];
+}
+
+function rgb(hex) {
+  return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
+}
+function nearest(r,g,b) {
+  let best=PALETTE[0], bd=1e9;
+  for (const c of PALETTE) {
+    const x=rgb(c.hex), d=(r-x[0])**2+(g-x[1])**2+(b-x[2])**2;
+    if (d<bd) { bd=d; best=c; }
+  }
+  return best.hex;
+}
+function hexToRgb(h) { const [r,g,b]=rgb(h); return `rgb(${r},${g},${b})`; }
+
+function totalSeats() {
+  return state.zones.reduce((s,z) => s + z.blocks.reduce((s2,b) => s2+b.rows*b.cols, 0), 0);
+}
+
+// ── Tree rendering ───────────────────────────────────────────────────────────
+function renderTree() {
+  const el = $('treeContent');
+  el.innerHTML = '';
+  if (!state.zones.length) {
+    el.innerHTML = '<p style="font-size:12px;color:var(--muted);text-align:center;margin-top:16px">Aucune zone.<br>Ajoutez une zone pour commencer.</p>';
+    return;
+  }
+  state.zones.forEach(zone => {
+    const zActive = sel.zoneId === zone.id;
+    const zoneDiv = document.createElement('div');
+    zoneDiv.className = 'zone-row';
+    const seats = zone.blocks.reduce((s,b) => s+b.rows*b.cols, 0);
+    zoneDiv.innerHTML = `
+      <div class="zone-hd${zActive && !sel.blockId ? ' active' : ''}" onclick="selectZone('${zone.id}')">
+        <span class="zone-dot" style="background:${zone.color}"></span>
+        <span class="zone-label">${zone.name}</span>
+        <span class="zone-meta">${seats.toLocaleString()} pl.</span>
+      </div>
+      <div class="block-list" id="bl_${zone.id}"></div>`;
+    el.appendChild(zoneDiv);
+    const bl = $('bl_'+zone.id);
+    zone.blocks.forEach(block => {
+      const bActive = sel.blockId === block.id;
+      const dc = dominantColor(zone.id, block.id) || zone.color;
+      const row = document.createElement('div');
+      row.className = 'block-row' + (bActive ? ' active' : '');
+      row.innerHTML = `<span class="block-color" style="background:${dc}"></span>
+        <span class="block-label">${block.name}</span>
+        <span class="zone-meta">${block.rows}×${block.cols}</span>`;
+      row.onclick = e => { e.stopPropagation(); selectBlock(zone.id, block.id); };
+      bl.appendChild(row);
+    });
+  });
+  updateStats();
+}
+
+function updateStats() {
+  const seats = totalSeats();
+  const blocks = state.zones.reduce((s,z) => s+z.blocks.length, 0);
+  $('statsChip').textContent = `${state.zones.length} zones · ${blocks} blocs · ${seats.toLocaleString()} sièges`;
+}
+
+// ── Overview canvas ──────────────────────────────────────────────────────────
+// Block layout: zones stacked vertically, blocks side by side within each zone
+let blockHitAreas = []; // [{zoneId, blockId, x, y, w, h}]
+
+function renderOverview() {
+  const canvas = $('overview');
+  const parent = canvas.parentElement;
+  const W = parent.clientWidth;
+  const ROW_H = 80;
+  const H = Math.max(300, state.zones.length * ROW_H);
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#050b14';
+  ctx.fillRect(0, 0, W, H);
+  blockHitAreas = [];
+
+  if (!state.zones.length) {
+    ctx.fillStyle = 'rgba(255,255,255,.2)';
+    ctx.font = '14px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Ajoutez des zones dans le panneau gauche', W/2, H/2);
+    return;
+  }
+
+  state.zones.forEach((zone, zi) => {
+    const y0 = zi * ROW_H;
+    const totalCols = zone.blocks.reduce((s,b) => s+b.cols, 0) || 1;
+    let x = 0;
+
+    // Zone background
+    ctx.fillStyle = zone.color + '18';
+    ctx.fillRect(0, y0, W, ROW_H);
+
+    zone.blocks.forEach(block => {
+      const bW = Math.max(8, Math.floor((block.cols / totalCols) * W));
+      const bH = ROW_H - 2;
+      const dc = dominantColor(zone.id, block.id) || zone.color;
+      const isSelBlock = sel.blockId === block.id;
+      const isSelZone  = sel.zoneId === zone.id && !sel.blockId;
+
+      // Block fill
+      ctx.fillStyle = dc;
+      ctx.fillRect(x+1, y0+1, bW-2, bH);
+
+      // Selection highlight
+      ctx.strokeStyle = isSelBlock ? 'white' : isSelZone ? 'rgba(255,255,255,.4)' : 'rgba(255,255,255,.12)';
+      ctx.lineWidth = isSelBlock ? 2 : 1;
+      ctx.strokeRect(x+1.5, y0+1.5, bW-3, bH-1);
+
+      // Block label
+      ctx.fillStyle = 'rgba(255,255,255,.85)';
+      ctx.font = `${bW > 60 ? 11 : 9}px Inter, sans-serif`;
+      ctx.textAlign = 'left';
+      if (bW > 20) ctx.fillText(block.name.replace('Bloc ', ''), x+5, y0+14);
+
+      blockHitAreas.push({ zoneId: zone.id, blockId: block.id, x, y: y0, w: bW, h: ROW_H });
+      x += bW;
+    });
+
+    // Zone label (left edge)
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    ctx.font = '11px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(zone.name, 4, y0 + ROW_H - 5);
+  });
+}
+
+$('overview').onclick = e => {
+  const rect = $('overview').getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  for (const hit of blockHitAreas) {
+    if (mx >= hit.x && mx < hit.x+hit.w && my >= hit.y && my < hit.y+hit.h) {
+      selectBlock(hit.zoneId, hit.blockId);
+      return;
+    }
+  }
+};
+
+// ── Selection ─────────────────────────────────────────────────────────────────
+function selectZone(zid) {
+  sel = { type: 'zone', zoneId: zid, blockId: null };
+  refresh();
+}
+function selectBlock(zid, bid) {
+  sel = { type: 'block', zoneId: zid, blockId: bid };
+  refresh();
+}
+function refresh() { renderTree(); renderOverview(); renderEditor(); }
+
+// ── Editor panel ──────────────────────────────────────────────────────────────
+function renderEditor() {
+  const el = $('editor');
+  if (sel.type === 'block') renderBlockEditor(el);
+  else if (sel.type === 'zone') renderZoneEditor(el);
+  else renderStadiumEditor(el);
+}
+
+// ── Stadium editor ────────────────────────────────────────────────────────────
+function renderStadiumEditor(el) {
+  el.innerHTML = `
+    <div class="ed-section">
+      <div class="ed-title">🏟 Stade</div>
+      <div class="ed-row"><span class="ed-label">Nom</span><input id="eStadName" value="${state.name}" oninput="state.name=this.value;$('stadiumName').value=this.value"></div>
+      <div class="ed-row"><span class="ed-label">Mode</span>
+        <select id="eMode" onchange="state.mode=this.value">
+          <option value="screen"${state.mode==='screen'?' selected':''}>Téléphone = couleur</option>
+          <option value="instruction"${state.mode==='instruction'?' selected':''}>Instruction drapeau/carton</option>
+          <option value="hybrid"${state.mode==='hybrid'?' selected':''}>Hybride</option>
+        </select>
+      </div>
+    </div>
+    <div class="sep"></div>
+    <div class="ed-section">
+      <div class="ed-title">🖼 Image globale (tout le stade)</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:8px">
+        L'image est découpée en tuiles selon la grille zones × blocs et distribuée automatiquement. Idéal pour un tifo couvrant toute la tribune.
+      </p>
+      <input type="file" id="eGlobalImg" accept="image/*" style="width:100%;font-size:12px">
+      <button onclick="applyGlobalImage()" style="margin-top:8px;width:100%">Distribuer sur tous les blocs</button>
+    </div>
+    <div class="sep"></div>
+    <div class="ed-section">
+      <div class="ed-title">📊 Résumé</div>
+      ${state.zones.map(z => {
+        const seats = z.blocks.reduce((s,b) => s+b.rows*b.cols, 0);
+        const blocks = z.blocks.length;
+        return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+          <span style="width:10px;height:10px;border-radius:50%;background:${z.color};flex-shrink:0"></span>
+          <span style="font-size:13px;flex:1">${z.name}</span>
+          <span style="font-size:11px;color:var(--muted)">${blocks} blocs · ${seats.toLocaleString()} pl.</span>
+        </div>`;
+      }).join('')}
+      <div style="margin-top:8px;font-size:13px;font-weight:700">Total : ${totalSeats().toLocaleString()} sièges</div>
+    </div>`;
+}
+
+// ── Zone editor ───────────────────────────────────────────────────────────────
+function renderZoneEditor(el) {
+  const zone = getZone(sel.zoneId);
+  if (!zone) return;
+  el.innerHTML = `
+    <div class="ed-section">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div class="ed-title" style="margin:0">Zone sélectionnée</div>
+        <button class="sm danger" onclick="removeZone('${zone.id}')">Supprimer</button>
+      </div>
+      <div class="ed-row"><span class="ed-label">Nom</span>
+        <input value="${zone.name}" oninput="getZone('${zone.id}').name=this.value;refresh()">
+      </div>
+      <div class="ed-row"><span class="ed-label">Couleur</span>
+        <input type="color" value="${zone.color}" oninput="getZone('${zone.id}').color=this.value;refresh()" style="width:48px;height:32px;padding:2px">
+        <span style="font-size:12px;color:var(--muted)">${zone.color}</span>
+      </div>
+    </div>
+    <div class="sep"></div>
+    <div class="ed-section">
+      <div class="ed-title">Remplissage rapide</div>
+      <div class="ed-row">
+        <input type="color" id="eFillColor" value="${zone.color}" style="width:40px;height:32px;padding:2px">
+        <button onclick="fillZoneWithColor('${zone.id}',$('eFillColor').value)" style="flex:1">Remplir toute la zone</button>
+      </div>
+      <div class="ed-title" style="margin-top:12px">Image de zone</div>
+      <input type="file" id="eZoneImg" accept="image/*" style="width:100%;font-size:12px">
+      <button onclick="applyZoneImage('${zone.id}')" style="margin-top:6px;width:100%">Distribuer sur les blocs de la zone</button>
+    </div>
+    <div class="sep"></div>
+    <div class="ed-section">
+      <div class="ed-title">Ajouter un bloc</div>
+      <div class="ed-row"><span class="ed-label">Nom</span><input id="eBlkName" value="Bloc ${String.fromCharCode(65+zone.blocks.length)}" style="width:120px"></div>
+      <div class="ed-row">
+        <span class="ed-label">Rangées</span><input id="eBlkRows" type="number" min="1" max="200" value="30" style="width:70px">
+        <span class="ed-label" style="width:auto">× Sièges</span><input id="eBlkCols" type="number" min="1" max="300" value="25" style="width:70px">
+      </div>
+      <button onclick="addBlock('${zone.id}')" style="width:100%;margin-top:4px">+ Ajouter ce bloc</button>
+    </div>
+    <div class="sep"></div>
+    <div class="ed-section">
+      <div class="ed-title">Blocs de cette zone</div>
+      ${zone.blocks.length === 0 ? '<p style="font-size:12px;color:var(--muted)">Aucun bloc.</p>' :
+        zone.blocks.map(b => `
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+            <span style="font-size:12px;flex:1">${b.name} <span style="color:var(--muted)">${b.rows}×${b.cols}</span></span>
+            <button class="sm secondary" onclick="selectBlock('${zone.id}','${b.id}')">Éditer</button>
+            <button class="sm danger" onclick="removeBlock('${zone.id}','${b.id}')">✕</button>
+          </div>`).join('')}
+    </div>`;
+}
+
+// ── Block editor ──────────────────────────────────────────────────────────────
+function renderBlockEditor(el) {
+  const zone  = getZone(sel.zoneId);
+  const block = getBlock(sel.zoneId, sel.blockId);
+  if (!zone || !block) return;
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div>
+        <div class="ed-title" style="margin:0">${zone.name}</div>
+        <div style="font-size:15px;font-weight:700">${block.name} <span style="font-size:12px;color:var(--muted)">${block.rows} × ${block.cols} = ${block.rows*block.cols} places</span></div>
+      </div>
+      <button class="sm danger" onclick="removeBlock('${zone.id}','${block.id}')">Supprimer</button>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="ed-section">
+      <div class="ed-title">Palette</div>
+      <div class="palette-strip" id="ePalette"></div>
+      <p style="font-size:11px;color:var(--muted);margin-top:5px">Clique une couleur, puis clique des sièges dans la grille.</p>
+    </div>
+
+    <div class="ed-section">
+      <div class="ed-title">Import image → bloc</div>
+      <input type="file" id="eBlkImg" accept="image/*" style="width:100%;font-size:12px">
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button onclick="applyBlockImage('${zone.id}','${block.id}')" style="flex:1">Appliquer à ce frame</button>
+        <button onclick="applyBlockImageAllFrames('${zone.id}','${block.id}')" class="secondary" style="flex:1">Tous les frames</button>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="ed-section">
+      <div class="ed-title">Grille — Frame <span id="eFrIdx">${currentFrame+1}/${state.frameCount}</span></div>
+      <div id="gridWrap"><div id="gridEl"></div></div>
+    </div>`;
+
+  renderPaletteStrip();
+  renderGrid(sel.zoneId, sel.blockId);
+}
+
+function renderPaletteStrip() {
+  const el = $('ePalette');
+  if (!el) return;
+  el.innerHTML = '';
+  PALETTE.forEach(c => {
+    const s = document.createElement('div');
+    s.className = 'p-swatch' + (selColor.hex === c.hex ? ' active' : '');
+    s.style.background = c.hex;
+    s.title = c.name;
+    s.onclick = () => { selColor = c; renderPaletteStrip(); };
+    el.appendChild(s);
+  });
+}
+
+function renderGrid(zid, bid) {
+  const block = getBlock(zid, bid);
+  const grid  = getGrid(zid, bid, currentFrame);
+  const el    = $('gridEl');
+  if (!el) return;
+  const cs = Math.max(4, Math.min(12, Math.floor(310 / block.cols)));
+  el.style.gridTemplateColumns = `repeat(${block.cols}, ${cs}px)`;
+  el.innerHTML = '';
+  for (let r = 0; r < block.rows; r++) {
+    for (let c = 0; c < block.cols; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'g-cell';
+      cell.style.cssText = `width:${cs}px;height:${cs}px;background:${grid[r][c]}`;
+      cell.onclick = () => { grid[r][c] = selColor.hex; cell.style.background = selColor.hex; renderOverview(); renderTree(); };
+      el.appendChild(cell);
+    }
+  }
+}
+
+// ── Zone / Block actions ──────────────────────────────────────────────────────
+function addZone() {
+  const idx = state.zones.length;
+  const colors = ['#2563eb','#e11d48','#22c55e','#f97316','#8b5cf6','#facc15'];
+  const z = { id: 'z'+uid(), name: 'Zone '+(idx+1), color: colors[idx % colors.length], blocks: [] };
+  state.zones.push(z);
+  sel = { type: 'zone', zoneId: z.id, blockId: null };
+  refresh();
+}
+
+function removeZone(zid) {
+  if (!confirm('Supprimer cette zone et tous ses blocs ?')) return;
+  state.zones = state.zones.filter(z => z.id !== zid);
+  delete grids[zid];
+  sel = { type: 'stadium', zoneId: null, blockId: null };
+  refresh();
+}
+
+function addBlock(zid) {
+  const name = $('eBlkName')?.value || 'Bloc';
+  const rows = +($('eBlkRows')?.value || 30);
+  const cols = +($('eBlkCols')?.value || 25);
+  const block = { id: 'b'+uid(), name, rows, cols };
+  getZone(zid).blocks.push(block);
+  sel = { type: 'block', zoneId: zid, blockId: block.id };
+  refresh();
+}
+
+function removeBlock(zid, bid) {
+  const zone = getZone(zid);
+  zone.blocks = zone.blocks.filter(b => b.id !== bid);
+  if (grids[zid]) delete grids[zid][bid];
+  sel = { type: 'zone', zoneId: zid, blockId: null };
+  refresh();
+}
+
+// ── Color fills ───────────────────────────────────────────────────────────────
+function fillZoneWithColor(zid, color) {
+  const zone = getZone(zid);
+  zone.blocks.forEach(block => {
+    for (let fi = 0; fi < state.frameCount; fi++) {
+      grids[zid] = grids[zid] || {};
+      grids[zid][block.id] = grids[zid][block.id] || [];
+      grids[zid][block.id][fi] = Array.from({length: block.rows}, () =>
+        Array.from({length: block.cols}, () => color));
+    }
+  });
+  refresh();
+}
+
+// ── Image processing ──────────────────────────────────────────────────────────
+function getImageData(src, w, h) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const can = $('offscreen');
+      can.width = w; can.height = h;
+      const ctx = can.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(ctx.getImageData(0, 0, w, h).data);
+    };
+    img.src = src;
+  });
+}
+
+function dataToGrid(data, rows, cols) {
+  const grid = [];
+  for (let r = 0; r < rows; r++) {
+    const row = [];
+    for (let c = 0; c < cols; c++) {
+      const i = (r * cols + c) * 4;
+      row.push(nearest(data[i], data[i+1], data[i+2]));
+    }
+    grid.push(row);
+  }
+  return grid;
+}
+
+async function applyBlockImage(zid, bid) {
+  const f = $('eBlkImg')?.files?.[0]; if (!f) return alert('Choisis une image.');
+  const block = getBlock(zid, bid);
+  const src = URL.createObjectURL(f);
+  const data = await getImageData(src, block.cols, block.rows);
+  getGrid(zid, bid, currentFrame); // ensure init
+  grids[zid][bid][currentFrame] = dataToGrid(data, block.rows, block.cols);
+  refresh();
+}
+
+async function applyBlockImageAllFrames(zid, bid) {
+  const f = $('eBlkImg')?.files?.[0]; if (!f) return alert('Choisis une image.');
+  const block = getBlock(zid, bid);
+  const src = URL.createObjectURL(f);
+  const data = await getImageData(src, block.cols, block.rows);
+  const grid = dataToGrid(data, block.rows, block.cols);
+  ensureGrid(zid, bid);
+  grids[zid][bid] = Array.from({length: state.frameCount}, () => grid.map(r => [...r]));
+  refresh();
+}
+
+async function applyZoneImage(zid) {
+  const f = $('eZoneImg')?.files?.[0]; if (!f) return alert('Choisis une image.');
+  const zone = getZone(zid);
+  const totalCols = zone.blocks.reduce((s,b) => s+b.cols, 0);
+  const maxRows   = Math.max(...zone.blocks.map(b => b.rows));
+  const src = URL.createObjectURL(f);
+  const data = await getImageData(src, totalCols, maxRows);
+  const can = $('offscreen');
+  const ctx = can.getContext('2d');
+  let xOff = 0;
+  zone.blocks.forEach(block => {
+    const bData = ctx.getImageData(xOff, 0, block.cols, block.rows).data;
+    ensureGrid(zid, block.id);
+    grids[zid][block.id][currentFrame] = dataToGrid(bData, block.rows, block.cols);
+    xOff += block.cols;
+  });
+  refresh();
+}
+
+async function applyGlobalImage() {
+  const f = $('eGlobalImg')?.files?.[0]; if (!f) return alert('Choisis une image.');
+  if (!state.zones.length) return alert('Aucune zone définie.');
+  const maxCols = Math.max(...state.zones.map(z => z.blocks.reduce((s,b) => s+b.cols, 0)));
+  const totalRows = state.zones.reduce((s,z) => s + Math.max(...z.blocks.map(b => b.rows), [1]), 0);
+  const src = URL.createObjectURL(f);
+  await getImageData(src, maxCols, totalRows); // loads onto offscreen canvas
+  const can = $('offscreen');
+  const ctx = can.getContext('2d');
+  let yOff = 0;
+  state.zones.forEach(zone => {
+    const maxRows = Math.max(...zone.blocks.map(b => b.rows), 1);
+    let xOff = 0;
+    zone.blocks.forEach(block => {
+      const bData = ctx.getImageData(xOff, yOff, block.cols, block.rows).data;
+      ensureGrid(zone.id, block.id);
+      grids[zone.id][block.id][currentFrame] = dataToGrid(bData, block.rows, block.cols);
+      xOff += block.cols;
+    });
+    yOff += maxRows;
+  });
+  refresh();
+}
+
+// ── Frame management ──────────────────────────────────────────────────────────
+function updateFrameLabel() {
+  $('frameLabel').textContent = `Frame ${currentFrame+1} / ${state.frameCount}`;
+  const efi = $('eFrIdx');
+  if (efi) efi.textContent = `${currentFrame+1}/${state.frameCount}`;
+}
+$('btnPrev').onclick = () => { if (currentFrame > 0) { currentFrame--; updateFrameLabel(); if (sel.blockId) renderGrid(sel.zoneId, sel.blockId); renderOverview(); } };
+$('btnNext').onclick = () => { if (currentFrame < state.frameCount-1) { currentFrame++; updateFrameLabel(); if (sel.blockId) renderGrid(sel.zoneId, sel.blockId); renderOverview(); } };
+$('btnAddFrame').onclick = () => { state.frameCount++; currentFrame = state.frameCount-1; updateFrameLabel(); if (sel.blockId) renderGrid(sel.zoneId, sel.blockId); renderOverview(); };
+
+// ── Export ────────────────────────────────────────────────────────────────────
+$('btnExportJson').onclick = () => {
+  const frames = [];
+  for (let fi = 0; fi < state.frameCount; fi++) {
+    const frameData = { name: `Frame ${fi+1}`, zones: {} };
+    state.zones.forEach(zone => {
+      frameData.zones[zone.id] = { name: zone.name };
+      zone.blocks.forEach(block => {
+        frameData.zones[zone.id][block.id] = {
+          name: block.name,
+          rows: block.rows, cols: block.cols,
+          grid: grids[zone.id]?.[block.id]?.[fi] || null,
+        };
+      });
+    });
+    frames.push(frameData);
+  }
+  const payload = {
+    version: 2, name: state.name, createdAt: new Date().toISOString(),
+    mode: state.mode, frameSec: +($('frameSec').value || 4),
+    palette: PALETTE, menuItems: state.menuItems,
+    stadium: {
+      name: state.name,
+      zones: state.zones.map(z => ({
+        id: z.id, name: z.name, color: z.color,
+        blocks: z.blocks.map(b => ({ id: b.id, name: b.name, rows: b.rows, cols: b.cols }))
+      }))
+    },
+    frames,
+  };
+  download(`${state.name.replace(/\s+/g,'-')}.json`, JSON.stringify(payload, null, 2));
+};
+
+$('btnExportCsv').onclick = () => {
+  const base = prompt('URL publique de base (ex: https://club.github.io/stadium-choreo-web/)', 'https://');
+  if (!base) return;
+  let csv = 'stade,zone,bloc,rangee,siege,seat_id,url\n';
+  state.zones.forEach(zone => {
+    zone.blocks.forEach(block => {
+      const g = grids[zone.id]?.[block.id]?.[0];
+      for (let r = 1; r <= block.rows; r++) {
+        for (let c = 1; c <= block.cols; c++) {
+          const sid = `R${String(r).padStart(2,'0')}-C${String(c).padStart(2,'0')}`;
+          const color = g?.[r-1]?.[c-1] || '';
+          const params = new URLSearchParams({ stand: zone.name, block: block.name, row: r, seat: c });
+          if (color) params.set('color', color);
+          const url = base.replace(/\/$/, '') + '/?' + params.toString();
+          csv += `"${state.name}","${zone.name}","${block.name}",${r},${c},"${sid}","${url}"\n`;
+        }
+      }
+    });
+  });
+  download(`${state.name.replace(/\s+/g,'-')}-seats.csv`, csv, 'text/csv');
+};
+
+function download(name, content, type='application/json') {
+  const blob = new Blob([content], {type});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+}
+
+// ── Add Zone button ───────────────────────────────────────────────────────────
+$('btnAddZone').onclick = addZone;
+
+// ── Window resize ─────────────────────────────────────────────────────────────
+window.addEventListener('resize', renderOverview);
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+function init() {
+  // Default stadium: 2 zones, 3 blocks each
+  const z1 = { id: 'z'+uid(), name: 'Tribune Nord', color: '#2563eb', blocks: [] };
+  const z2 = { id: 'z'+uid(), name: 'Tribune Sud',  color: '#e11d48', blocks: [] };
+  ['Bloc A','Bloc B','Bloc C'].forEach(n => z1.blocks.push({ id: 'b'+uid(), name: n, rows: 30, cols: 25 }));
+  ['Bloc A','Bloc B','Bloc C'].forEach(n => z2.blocks.push({ id: 'b'+uid(), name: n, rows: 30, cols: 25 }));
+  state.zones = [z1, z2];
+  sel = { type: 'stadium', zoneId: null, blockId: null };
+  updateFrameLabel();
+  refresh();
+}
+init();
+
+// ── Live Panel ────────────────────────────────────────────────────────────────
+let sbClient = null, sbChannel = null, activeVoteId = null;
+
+function toggleLivePanel() {
+  const panel = $('livePanel'), scrim = $('liveScrim');
+  const isOpen = panel.classList.contains('open');
+  panel.classList.toggle('open', !isOpen);
+  scrim.classList.toggle('open', !isOpen);
+  if (!isOpen) rebuildNotifTargets();
+}
+
+function setLiveTab(tab) {
+  ['notif','vote','loterie','flash','orders','shop','config'].forEach(t => {
+    $('liveTab' + t.charAt(0).toUpperCase() + t.slice(1)).style.display = t === tab ? '' : 'none';
+  });
+  document.querySelectorAll('.live-tab').forEach((btn, i) => {
+    btn.classList.toggle('active', ['notif','vote','loterie','flash','orders','shop','config'][i] === tab);
+  });
+  if (tab === 'orders') loadOrders();
+  if (tab === 'shop') renderShopItems();
+}
+
+// ── Supabase init ─────────────────────────────────────────────────────────────
+function initSB() {
+  const url = $('sbUrl').value.trim();
+  const key = $('sbKey').value.trim();
+  if (!url || !key) { $('sbStatusMsg').textContent = 'URL et clé requises.'; return; }
+  if (typeof supabase === 'undefined') { $('sbStatusMsg').textContent = 'SDK Supabase non chargé.'; return; }
+  try {
+    sbClient = supabase.createClient(url, key);
+    const stadiumId = $('sbStadiumId').value.trim() || 'default';
+    sbChannel = sbClient.channel(`crowdluma-${stadiumId}`).subscribe(status => {
+      const ok = status === 'SUBSCRIBED';
+      $('sbStatusDot').style.background = ok ? 'var(--ok)' : 'var(--bad)';
+      $('sbStatusMsg').textContent = ok ? '✓ Connecté — channel actif' : `Statut : ${status}`;
+    });
+    // Save credentials for session
+    sessionStorage.setItem('sbUrl', url);
+    sessionStorage.setItem('sbKey', key);
+    sessionStorage.setItem('sbStadiumId', $('sbStadiumId').value.trim() || 'default');
+  } catch(e) {
+    $('sbStatusMsg').textContent = 'Erreur : ' + e.message;
+  }
+}
+
+// ── Notification targets (built from current stadium state) ───────────────────
+function rebuildNotifTargets() {
+  const sel = $('notifTarget');
+  sel.innerHTML = '<option value="all">🏟 Tout le stade</option>';
+  state.zones.forEach(z => {
+    sel.innerHTML += `<option value="zone:${z.id}">▶ Zone : ${z.name}</option>`;
+    z.blocks.forEach(b => {
+      sel.innerHTML += `<option value="block:${b.id}">&nbsp;&nbsp;Bloc : ${z.name} / ${b.name}</option>`;
+    });
+  });
+  sel.innerHTML += '<option value="__seat__">📍 Siège précis…</option>';
+}
+
+$('notifTarget').addEventListener('change', function() {
+  const existing = document.getElementById('seatTargetRow');
+  if (this.value === '__seat__') {
+    if (!existing) {
+      const row = document.createElement('div');
+      row.id = 'seatTargetRow';
+      row.style.cssText = 'display:flex;gap:6px;margin-top:6px';
+      row.innerHTML = '<input class="live-input" id="seatTargetVal" placeholder="ex: R12-C34" style="flex:1">';
+      this.parentNode.insertBefore(row, this.nextSibling);
+    }
+  } else if (existing) existing.remove();
+});
+
+async function sendNotif() {
+  const fb = $('notifFeedback');
+  if (!sbChannel) { fb.style.color='var(--bad)'; fb.textContent = '⚠ Supabase non connecté (onglet Config)'; return; }
+  let target = $('notifTarget').value;
+  if (target === '__seat__') target = 'seat:' + ($('seatTargetVal')?.value.trim() || '');
+  const message = $('notifMsg').value.trim();
+  if (!message) { fb.style.color='var(--bad)'; fb.textContent = '⚠ Message vide.'; return; }
+  await sbChannel.send({ type: 'broadcast', event: 'notification', payload: { target, message } });
+  fb.style.color = 'var(--ok)';
+  fb.textContent = `✓ Envoyé → ${target}`;
+  $('notifMsg').value = '';
+  setTimeout(() => { fb.textContent = ''; }, 4000);
+}
+
+// ── Vote ──────────────────────────────────────────────────────────────────────
+async function launchVote() {
+  if (!sbChannel) { alert('Supabase non connecté.'); return; }
+  const question = $('voteQ').value.trim();
+  const options = [$('voteOpt0').value.trim(), $('voteOpt1').value.trim(), $('voteOpt2').value.trim()].filter(Boolean);
+  if (!question || options.length < 2) { alert('Question + au moins 2 options requises.'); return; }
+
+  let voteId = 'v_' + Date.now();
+  if (sbClient) {
+    const { data } = await sbClient.from('votes').insert({
+      stadium_id: sessionStorage.getItem('sbStadiumId') || 'default',
+      question, options,
+    }).select('id').single().catch(() => ({ data: null }));
+    if (data?.id) voteId = data.id;
+  }
+  activeVoteId = voteId;
+  await sbChannel.send({ type: 'broadcast', event: 'vote', payload: { id: voteId, question, options } });
+
+  $('voteActiveQ').textContent = question;
+  $('liveVoteCreate').style.display = 'none';
+  $('liveVoteActive').style.display = '';
+  refreshVoteResults();
+}
+
+async function refreshVoteResults() {
+  const el = $('voteResults');
+  if (!sbClient || !activeVoteId) { el.innerHTML = '<p style="font-size:12px;color:var(--muted)">Aucun résultat (Supabase requis).</p>'; return; }
+  const { data } = await sbClient.from('vote_responses').select('option_idx').eq('vote_id', activeVoteId).catch(() => ({ data: [] }));
+  if (!data?.length) { el.innerHTML = '<p style="font-size:12px;color:var(--muted)">Aucun vote reçu.</p>'; return; }
+
+  // Retrieve options from vote record
+  const { data: voteData } = await sbClient.from('votes').select('options,question').eq('id', activeVoteId).single().catch(() => ({ data: null }));
+  const options = voteData?.options || [];
+  const total = data.length;
+  const counts = options.map((_, i) => data.filter(r => r.option_idx === i).length);
+  el.innerHTML = `<p style="font-size:12px;color:var(--muted);margin-bottom:8px">${total} vote(s)</p>` +
+    options.map((opt, i) => {
+      const pct = Math.round((counts[i] / total) * 100);
+      return `<div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+          <span>${opt}</span><span style="font-weight:700">${counts[i]} (${pct}%)</span>
+        </div>
+        <div class="vr-bar"><div class="vr-fill" style="width:${pct}%;background:var(--accent)"></div></div>
+      </div>`;
+    }).join('');
+}
+
+async function endVote() {
+  if (!sbChannel) return;
+  let finalResults = null;
+  if (sbClient && activeVoteId) {
+    const [{ data: responses }, { data: voteData }] = await Promise.all([
+      sbClient.from('vote_responses').select('option_idx').eq('vote_id', activeVoteId).catch(() => ({ data: [] })),
+      sbClient.from('votes').select('options').eq('id', activeVoteId).single().catch(() => ({ data: null })),
+    ]);
+    if (responses?.length && voteData?.options) {
+      const total = responses.length;
+      finalResults = voteData.options.map((option, i) => ({
+        option,
+        count: responses.filter(r => r.option_idx === i).length,
+        pct: Math.round(responses.filter(r => r.option_idx === i).length / total * 100),
+      }));
+    }
+    await sbClient.from('votes').update({ active: false }).eq('id', activeVoteId).catch(() => {});
+  }
+  await sbChannel.send({ type: 'broadcast', event: 'vote_end', payload: { results: finalResults } });
+  activeVoteId = null;
+  $('liveVoteCreate').style.display = '';
+  $('liveVoteActive').style.display = 'none';
+  $('voteQ').value = ''; $('voteOpt0').value = ''; $('voteOpt1').value = ''; $('voteOpt2').value = '';
+}
+
+// ── Commandes ─────────────────────────────────────────────────────────────────
+async function loadOrders() {
+  const el = $('ordersList');
+  if (!sbClient) { el.innerHTML = '<p style="font-size:12px;color:var(--muted)">Supabase non connecté.</p>'; return; }
+  const stadiumId = sessionStorage.getItem('sbStadiumId') || 'default';
+  const { data } = await sbClient.from('orders')
+    .select('*').eq('stadium_id', stadiumId)
+    .order('created_at', { ascending: false }).limit(50)
+    .catch(() => ({ data: [] }));
+  if (!data?.length) { el.innerHTML = '<p style="font-size:12px;color:var(--muted)">Aucune commande.</p>'; return; }
+  el.innerHTML = data.map(o => {
+    const isPending = (o.status || 'pending') === 'pending';
+    return `<div class="order-row">
+      <b>${o.item_label || o.item_id}${o.price ? ' — ' + o.price + ' €' : ''}</b>
+      <span style="color:var(--accent)"> · ${o.seat_id}</span>
+      <span style="float:right;color:var(--muted)">${new Date(o.created_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+        <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${isPending?'rgba(251,191,36,.15)':'rgba(52,211,153,.15)'};color:${isPending?'var(--warn)':'var(--ok)'}">${o.status||'pending'}</span>
+        ${isPending ? `<button onclick="deliverOrder('${o.id}','${o.seat_id}')" style="background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.3);color:var(--ok);border-radius:8px;padding:3px 10px;font:inherit;font-size:11px;font-weight:700;cursor:pointer">Livré ✓</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function deliverOrder(orderId, seatId) {
+  if (!sbClient) return;
+  await sbClient.from('orders').update({ status: 'delivered' }).eq('id', orderId).catch(() => {});
+  if (sbChannel) {
+    await sbChannel.send({ type: 'broadcast', event: 'notification', payload: {
+      target: `seat:${seatId}`,
+      message: '✓ Votre commande est en route — livraison dans quelques minutes !',
+    }});
+  }
+  loadOrders();
+}
+
+// ── Shop config ───────────────────────────────────────────────────────────────
+let shopItems = [
+  {id:'beer', icon:'🍺', label:'Boisson',   desc:'Bière, eau, soda livré à votre siège', price:'4.50', enabled:false},
+  {id:'snack',icon:'🌭', label:'Snack',     desc:'Hot-dog, frites et snacks',            price:'3.00', enabled:false},
+  {id:'menu', icon:'🥤', label:'Menu',      desc:'Boisson + snack',                      price:'7.00', enabled:false},
+  {id:'info', icon:'📋', label:'Programme', desc:'Compositions des équipes',             price:null,   enabled:false},
+];
+
+function renderShopItems() {
+  $('shopItemsList').innerHTML = !shopItems.length
+    ? '<p style="font-size:12px;color:var(--muted)">Aucun article.</p>'
+    : shopItems.map((item, idx) => `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,${item.enabled?'.15':'.07'});border-radius:12px;margin-bottom:6px">
+        <span style="font-size:22px;flex-shrink:0">${item.icon}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.label}</div>
+          ${item.price ? `<div style="font-size:11px;color:var(--accent)">${item.price} €</div>` : ''}
+        </div>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;flex-shrink:0">
+          <input type="checkbox" ${item.enabled?'checked':''} onchange="shopItems[${idx}].enabled=this.checked;renderShopItems()" style="accent-color:var(--ok);width:14px;height:14px">
+          <span style="color:${item.enabled?'var(--ok)':'var(--muted)'};font-weight:700">${item.enabled?'ON':'off'}</span>
+        </label>
+        <button onclick="removeShopItem(${idx})" style="background:none;border:none;color:var(--bad);cursor:pointer;font-size:18px;padding:0 2px;flex-shrink:0;line-height:1">×</button>
+      </div>`).join('');
+}
+
+function addShopItem() {
+  const icon  = $('newItemIcon').value.trim()  || '🛍';
+  const label = $('newItemLabel').value.trim();
+  if (!label) { $('newItemLabel').focus(); return; }
+  shopItems.push({
+    id: 'item_' + Date.now(),
+    icon, label,
+    desc:  $('newItemDesc').value.trim(),
+    price: $('newItemPrice').value.trim() || null,
+    enabled: true,
+  });
+  $('newItemIcon').value=''; $('newItemLabel').value=''; $('newItemDesc').value=''; $('newItemPrice').value='';
+  renderShopItems();
+}
+
+function removeShopItem(idx) { shopItems.splice(idx, 1); renderShopItems(); }
+
+async function broadcastShop() {
+  const fb = $('shopFeedback');
+  if (!sbChannel) { fb.style.color='var(--bad)'; fb.textContent='⚠ Supabase non connecté (onglet Config)'; return; }
+  await sbChannel.send({ type:'broadcast', event:'menu_update', payload:{ menuItems: shopItems } });
+  fb.style.color='var(--ok)'; fb.textContent='✓ Shop diffusé à tous les participants';
+  setTimeout(() => fb.textContent='', 3500);
+}
+
+// ── MVP2 — Synchronisation show ───────────────────────────────────────────────
+async function adminGoLive() {
+  if (!sbChannel) { alert('Connectez d\'abord Supabase (🔴 Live › ⚙ Config).'); return; }
+  const nf = state.frameCount || 1;
+  const fs = state.frameSec  || +($('frameSec').value) || 4;
+  const payload = await showSync.goLive(sbChannel, fs, nf);
+  $('liveShowStatus').textContent = `▶ Live — démarrage…`;
+  if (window._liveTimer) clearInterval(window._liveTimer);
+  window._liveTimer = setInterval(() => {
+    const elapsed = (Date.now() - payload.startTime) / 1000;
+    const frame   = (Math.floor(elapsed / fs) % nf) + 1;
+    $('liveShowStatus').textContent = `▶ Live · frame ${frame}/${nf}`;
+  }, 500);
+}
+
+async function adminPauseShow() {
+  if (!sbChannel) return;
+  await showSync.pause(sbChannel);
+  if (window._liveTimer) { clearInterval(window._liveTimer); window._liveTimer = null; }
+  $('liveShowStatus').textContent = 'Show : en pause ❚❚';
+}
+
+// ── MVP2 — Auth admin (auto-init depuis config.js) ────────────────────────────
+(function autoInit() {
+  if (typeof CROWDLUMA_CONFIG === 'undefined' || !CROWDLUMA_CONFIG.supabaseUrl) return;
+  $('sbUrl').value      = CROWDLUMA_CONFIG.supabaseUrl;
+  $('sbKey').value      = CROWDLUMA_CONFIG.supabaseKey;
+  $('sbStadiumId').value = CROWDLUMA_CONFIG.stadiumId || 'default';
+  if (typeof supabase !== 'undefined') {
+    initSB();
+    // Vérifier la session auth
+    const client = supabase.createClient(CROWDLUMA_CONFIG.supabaseUrl, CROWDLUMA_CONFIG.supabaseKey);
+    client.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        $('btnLogout').style.display = 'inline-block';
+        $('btnLogout').title = 'Connecté : ' + (session.user?.email || '');
+      }
+    });
+  }
+})();
+
+async function adminLogout() {
+  if (typeof CROWDLUMA_CONFIG === 'undefined' || !CROWDLUMA_CONFIG.supabaseUrl) return;
+  const client = supabase.createClient(CROWDLUMA_CONFIG.supabaseUrl, CROWDLUMA_CONFIG.supabaseKey);
+  await client.auth.signOut();
+  window.location.href = 'login.html';
+}
+
+// Restore saved credentials
+(function(){
+  const url = sessionStorage.getItem('sbUrl'), key = sessionStorage.getItem('sbKey');
+  if (url) $('sbUrl').value = url;
+  if (key) $('sbKey').value = key;
+  const sid = sessionStorage.getItem('sbStadiumId');
+  if (sid) $('sbStadiumId').value = sid;
+  if (url && key) initSB();
+})();
+
+// ── Admin Auth (Supabase Auth) ─────────────────────────────────────────────────
+let adminUser = null;
+
+async function initAuth() {
+  const url = sessionStorage.getItem('sbUrl');
+  const key = sessionStorage.getItem('sbKey');
+  if (!url || !key) return; // no credentials → open access
+  try {
+    if (!sbClient) sbClient = supabase.createClient(url, key);
+    const { data: { session } } = await sbClient.auth.getSession().catch(() => ({ data: { session: null } }));
+    if (session?.user) { adminUser = session.user; showAdminUser(); }
+    else { $('authScreen').style.display = 'grid'; }
+  } catch(e) { /* ignore auth errors, open access */ }
+}
+
+async function doLogin() {
+  $('authError').textContent = '';
+  const email = $('authEmail').value.trim();
+  const pwd   = $('authPwd').value;
+  if (!email || !pwd) { $('authError').textContent = '⚠ Remplis email et mot de passe.'; return; }
+  const url = sessionStorage.getItem('sbUrl');
+  const key = sessionStorage.getItem('sbKey');
+  if (!url || !key) { skipAuth(); return; }
+  try {
+    if (!sbClient) sbClient = supabase.createClient(url, key);
+    const { data, error } = await sbClient.auth.signInWithPassword({ email, password: pwd });
+    if (error) {
+      $('authError').textContent = '⚠ ' + (error.message.includes('Invalid') ? 'Email ou mot de passe incorrect.' : error.message);
+      return;
+    }
+    adminUser = data.user;
+    $('authScreen').style.display = 'none';
+    showAdminUser();
+    initSB(); // reconnect channel now that we have a client
+  } catch(e) { $('authError').textContent = '⚠ Erreur : ' + e.message; }
+}
+
+function showAdminUser() {
+  if (!adminUser || $('userChip')) return;
+  const chip = document.createElement('div');
+  chip.id = 'userChip';
+  chip.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);flex-shrink:0';
+  const short = adminUser.email.split('@')[0];
+  chip.innerHTML = `<span style="font-size:13px">👤</span><span>${short}</span><button onclick="doLogout()" style="background:none;border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:2px 8px;font:inherit;font-size:11px;cursor:pointer" title="Se déconnecter">⏏</button>`;
+  document.getElementById('topbar').querySelector('div').appendChild(chip);
+}
+
+function skipAuth(e) { if(e)e.preventDefault(); $('authScreen').style.display = 'none'; }
+
+async function doLogout() {
+  if (sbClient) await sbClient.auth.signOut().catch(() => {});
+  sessionStorage.removeItem('sbUrl'); sessionStorage.removeItem('sbKey'); sessionStorage.removeItem('sbStadiumId');
+  location.reload();
+}
+
+// Call auth check on startup (after restore credentials block runs)
+setTimeout(initAuth, 200);
+
+// ── Loterie ───────────────────────────────────────────────────────────────────
+async function launchLottery() {
+  const fb = $('lotteryFeedback');
+  if (!sbChannel) { fb.style.color='var(--bad)'; fb.textContent='⚠ Supabase non connecté.'; return; }
+  const prize = $('lotteryPrize').value.trim() || 'Surprise !';
+  const block = $('lotteryBlock').value.trim() || null;
+  const suspenseSec = Math.max(2, Math.min(15, +$('lotterySuspense').value || 5));
+
+  // Trouver un siège gagnant depuis les participants récents (vote_responses) ou aléatoire
+  let winnerSeatId = null;
+  if (sbClient) {
+    const since = new Date(Date.now() - 3600000).toISOString(); // dernière heure
+    let q = sbClient.from('orders').select('seat_id,block_id').eq('stadium_id', sessionStorage.getItem('sbStadiumId')||'default').gte('created_at', since);
+    if (block) q = q.eq('block_id', block);
+    const { data } = await q.catch(() => ({ data: null }));
+    const seats = data?.map(o => o.seat_id).filter(Boolean) || [];
+    if (seats.length) winnerSeatId = seats[Math.floor(Math.random() * seats.length)];
+  }
+  // Fallback : générer un siège aléatoire depuis la grille visible
+  if (!winnerSeatId) {
+    const zones = state.zones;
+    const allBlocks = zones.flatMap(z => z.blocks);
+    const pick = allBlocks.length ? allBlocks[Math.floor(Math.random()*allBlocks.length)] : null;
+    const maxR = pick?.rows || 20;
+    const maxC = pick?.cols || 30;
+    const bName = (pick?.name || block || 'A').toUpperCase();
+    const r = Math.floor(Math.random()*maxR)+1;
+    const c = Math.floor(Math.random()*maxC)+1;
+    winnerSeatId = bName + String(r).padStart(2,'0') + '-' + String(c).padStart(2,'0');
+  }
+
+  // Phase 1 : suspense (tous les écrans s'animent)
+  await sbChannel.send({ type:'broadcast', event:'lottery_draw', payload:{ suspenseSec, prize, block } });
+  fb.style.color='var(--warn)'; fb.textContent = `🎰 Suspense en cours… (${suspenseSec}s)`;
+  $('lotteryWinnerDisplay').style.display='none';
+
+  // Phase 2 : révéler le gagnant après le suspense
+  setTimeout(async () => {
+    await sbChannel.send({ type:'broadcast', event:'lottery_win', payload:{ seatId: winnerSeatId, prize } });
+    fb.style.color='var(--ok)'; fb.textContent=`🏆 Gagnant : ${winnerSeatId}`;
+    $('lotteryWinnerSeat').textContent = winnerSeatId;
+    $('lotteryWinnerDisplay').style.display = '';
+  }, suspenseSec * 1000);
+}
+
+// ── Flashlight / Torche ───────────────────────────────────────────────────────
+async function broadcastTorch() {
+  const fb = $('torchFeedback');
+  if (!sbChannel) { fb.style.color='var(--bad)'; fb.textContent='⚠ Supabase non connecté.'; return; }
+  const pattern = $('torchPattern').value;
+  const target = $('torchTarget').value;
+  await sbChannel.send({ type:'broadcast', event:'torch', payload:{ pattern, target } });
+  const labels = { solid:'Continu', slow:'Stroboscope lent', fast:'Stroboscope rapide', off:'Éteint' };
+  fb.style.color = pattern==='off' ? 'var(--muted)' : 'var(--ok)';
+  fb.textContent = `✓ Envoyé : ${labels[pattern]}`;
+  setTimeout(()=>{ fb.textContent=''; }, 4000);
+}
+async function broadcastTorchOff() {
+  if (!sbChannel) return;
+  await sbChannel.send({ type:'broadcast', event:'torch', payload:{ pattern:'off', target:'all' } });
+  $('torchFeedback').style.color='var(--muted)';
+  $('torchFeedback').textContent='✓ Lampes éteintes';
+  setTimeout(()=>{ $('torchFeedback').textContent=''; }, 3000);
+}
+</script>
+</body>
+</html>
